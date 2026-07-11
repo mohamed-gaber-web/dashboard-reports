@@ -1,0 +1,15 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist/reports-dashboard/browser",
+  "rewrites": [
+    {
+      "source": "/data/:path*",
+      "destination": "https://growpath.sandbox.operations.eu.dynamics.com/data/:path*"
+    },
+    {
+      "source": "/((?!api/|data/).*)",
+      "destination": "/index.html"
+    }
+  ]
+}
