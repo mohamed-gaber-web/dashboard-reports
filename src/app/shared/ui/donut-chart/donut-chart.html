@@ -1,0 +1,45 @@
+@if (segments().length) {
+  <div class="flex flex-col items-center gap-6 sm:flex-row sm:items-center sm:gap-8">
+    <div class="relative shrink-0">
+      <svg viewBox="0 0 36 36" class="h-40 w-40 -rotate-0">
+        <circle
+          cx="18"
+          cy="18"
+          r="15.915"
+          fill="none"
+          stroke="var(--color-surface-muted)"
+          stroke-width="3.2"
+        />
+        @for (seg of segments(); track seg.label) {
+          <circle
+            cx="18"
+            cy="18"
+            r="15.915"
+            fill="none"
+            [attr.stroke]="seg.color"
+            stroke-width="3.2"
+            stroke-linecap="round"
+            [attr.stroke-dasharray]="seg.dashArray"
+            [attr.stroke-dashoffset]="seg.dashOffset"
+          />
+        }
+      </svg>
+      <div class="absolute inset-0 flex flex-col items-center justify-center">
+        <span class="text-2xl font-semibold tabular-nums text-content">{{ totalDisplay() }}</span>
+        <span class="text-xs text-faint">{{ centerLabel() }}</span>
+      </div>
+    </div>
+
+    <ul class="flex w-full flex-col gap-2.5">
+      @for (seg of segments(); track seg.label) {
+        <li class="flex items-center gap-2.5 text-sm">
+          <span class="h-2.5 w-2.5 shrink-0 rounded-full" [style.backgroundColor]="seg.color"></span>
+          <span class="truncate text-muted" [title]="seg.label">{{ seg.label }}</span>
+          <span class="ml-auto shrink-0 font-medium tabular-nums text-content">{{ seg.percent }}%</span>
+        </li>
+      }
+    </ul>
+  </div>
+} @else {
+  <p class="py-8 text-center text-sm text-faint">No data to chart.</p>
+}

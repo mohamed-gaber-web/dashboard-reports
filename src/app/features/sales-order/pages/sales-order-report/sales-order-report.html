@@ -1,0 +1,128 @@
+<div class="flex flex-col gap-6">
+  <app-page-header
+    eyebrow="Sales Order"
+    title="Sales Order Reports"
+    subtitle="Open backorders in company USMF that still have physical inventory remaining to fulfil."
+  >
+    <button type="button" (click)="model.load()" [disabled]="model.loading()" class="btn-ghost">
+      <app-icon [path]="icons.refresh" [size]="16" />
+      Refresh
+    </button>
+  </app-page-header>
+
+  @if (model.loading()) {
+    <app-spinner label="Loading sales orders from D365…" />
+  } @else if (model.error(); as error) {
+    <div class="card">
+      <app-empty-state
+        title="Something went wrong"
+        [message]="error"
+        retryLabel="Try again"
+        (retry)="model.load()"
+      />
+    </div>
+  } @else if (!model.hasData()) {
+    <div class="card">
+      <app-empty-state
+        title="No open backorders"
+        message="There are no backorder lines with remaining inventory right now."
+        icon="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2"
+      />
+    </div>
+  } @else {
+    <!-- KPI row -->
+    <section class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <app-kpi-card
+        label="Backorder lines"
+        [value]="model.totalLines()"
+        hint="Lines awaiting fulfilment"
+        [icon]="icons.lines"
+        accent="var(--color-chart-1)"
+      />
+      <app-kpi-card
+        label="Units remaining"
+        [value]="model.unitsRemaining()"
+        hint="Physical inventory to ship"
+        [icon]="icons.units"
+        accent="var(--color-chart-2)"
+      />
+      <app-kpi-card
+        label="Customers waiting"
+        [value]="model.customerCount()"
+        hint="Distinct customer accounts"
+        [icon]="icons.customers"
+        accent="var(--color-chart-3)"
+      />
+      <app-kpi-card
+        label="Sales orders"
+        [value]="model.orderCount()"
+        hint="Distinct order numbers"
+        [icon]="icons.orders"
+        accent="var(--color-chart-4)"
+      />
+    </section>
+
+    <!-- Charts -->
+    <section class="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <div class="lg:col-span-2">
+        <app-chart-card
+          title="Top customers by units remaining"
+          subtitle="Where the outstanding inventory is concentrated"
+        >
+          <app-bar-chart [data]="model.unitsByCustomer()" [format]="model.quantityFormat" />
+        </app-chart-card>
+      </div>
+      <app-chart-card title="Lines by currency" subtitle="Order currency mix">
+        <app-donut-chart [data]="model.linesByCurrency()" centerLabel="Lines" />
+      </app-chart-card>
+    </section>
+
+    <section class="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <app-chart-card title="Lines by document status" subtitle="Release stage of each line">
+        <app-bar-chart [data]="model.linesByStatus()" />
+      </app-chart-card>
+      <div class="lg:col-span-2">
+        <!-- Table -->
+        <section class="flex flex-col gap-3">
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div class="relative">
+              <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint">
+                <app-icon [path]="icons.search" [size]="16" />
+              </span>
+              <input
+                type="search"
+                placeholder="Search order, account or customer…"
+                [value]="model.search()"
+                (input)="model.setSearch($any($event.target).value)"
+                class="w-full rounded-lg border border-border-soft bg-surface py-2 pl-9 pr-3 text-sm text-content outline-none transition-colors placeholder:text-faint focus:border-brand-400 sm:w-80"
+              />
+            </div>
+            <div class="flex items-center gap-2 text-sm text-muted">
+              <span class="tabular-nums">{{ model.rangeLabel() }}</span>
+              <button
+                type="button"
+                (click)="model.prevPage()"
+                [disabled]="!model.canPrev()"
+                class="pager-btn"
+                aria-label="Previous page"
+              >
+                <app-icon [path]="icons.prev" [size]="16" />
+              </button>
+              <button
+                type="button"
+                (click)="model.nextPage()"
+                [disabled]="!model.canNext()"
+                class="pager-btn"
+                aria-label="Next page"
+              >
+                <app-icon [path]="icons.next" [size]="16" />
+              </button>
+            </div>
+          </div>
+
+          <app-data-table [columns]="model.columns" [rows]="model.pagedRows()" />
+        </section>
+      </div>
+    </section>
+  }
+</div>

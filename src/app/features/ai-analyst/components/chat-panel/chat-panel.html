@@ -1,0 +1,85 @@
+<div class="card card-lg flex h-full flex-col overflow-hidden">
+  <header class="flex items-center gap-2.5 border-b border-border-soft px-4 py-3">
+    <span
+      class="grid h-8 w-8 place-items-center rounded-lg text-white"
+      style="background: linear-gradient(135deg, var(--color-brand-500), var(--color-accent-500))"
+    >
+      <app-icon [path]="icons.sparkle" [size]="16" />
+    </span>
+    <div class="flex flex-col leading-tight">
+      <span class="text-sm font-semibold text-content">AI Analyst</span>
+      <span class="text-xs text-faint">Ask about your data or build a report</span>
+    </div>
+  </header>
+
+  <!-- Messages -->
+  <div class="flex-1 space-y-3 overflow-y-auto px-4 py-4">
+    @if (!messages().length && !busy()) {
+      <div class="flex flex-col gap-3 py-4">
+        <p class="text-sm text-muted">Try one of these to get started:</p>
+        <div class="flex flex-col gap-2">
+          @for (s of suggestions(); track s) {
+            <button type="button" (click)="pick(s)" class="suggestion">{{ s }}</button>
+          }
+        </div>
+      </div>
+    }
+
+    @for (m of messages(); track $index) {
+      <div class="flex" [class.justify-end]="m.role === 'user'">
+        <div
+          class="max-w-[85%] whitespace-pre-wrap rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed"
+          [class]="
+            m.role === 'user'
+              ? 'bg-brand-600 text-white'
+              : 'bg-surface-muted text-content'
+          "
+        >
+          {{ m.content }}
+        </div>
+      </div>
+    }
+
+    @if (busy()) {
+      <div class="flex justify-start">
+        <div class="max-w-[85%] whitespace-pre-wrap rounded-2xl bg-surface-muted px-3.5 py-2.5 text-sm leading-relaxed text-content">
+          @if (streaming()) {
+            {{ streaming() }}<span class="cursor">▍</span>
+          } @else {
+            <span class="dots"><span></span><span></span><span></span></span>
+          }
+        </div>
+      </div>
+    }
+
+    @if (error(); as e) {
+      <div class="rounded-xl bg-red-50 px-3.5 py-2.5 text-sm text-red-700 dark:bg-red-500/15 dark:text-red-300">
+        {{ e }}
+      </div>
+    }
+  </div>
+
+  <!-- Composer -->
+  <div class="border-t border-border-soft p-3">
+    <div class="flex items-end gap-2">
+      <textarea
+        rows="1"
+        placeholder="Ask a question or describe a report…"
+        [value]="draft()"
+        (input)="draft.set($any($event.target).value)"
+        (keydown)="onKeydown($event)"
+        class="composer"
+      ></textarea>
+      <button
+        type="button"
+        (click)="submit()"
+        [disabled]="busy() || !draft().trim()"
+        class="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-white transition-opacity disabled:opacity-40"
+        style="background: linear-gradient(135deg, var(--color-brand-500), var(--color-brand-600))"
+        aria-label="Send"
+      >
+        <app-icon [path]="icons.send" [size]="18" />
+      </button>
+    </div>
+  </div>
+</div>

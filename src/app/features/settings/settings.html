@@ -1,0 +1,208 @@
+<div class="flex flex-col gap-6">
+  <app-page-header
+    eyebrow="Appearance"
+    title="Branding & appearance"
+    subtitle="Personalise the workspace — name, logo and colours apply across the whole app instantly."
+  >
+    @if (!model.isDefault()) {
+      <button type="button" (click)="model.reset()" class="btn-ghost">
+        <app-icon [path]="icons.reset" [size]="16" />
+        Reset to default
+      </button>
+    }
+  </app-page-header>
+
+  <div class="grid gap-5 lg:grid-cols-3">
+    <!-- Controls -->
+    <div class="flex flex-col gap-5 lg:col-span-2">
+      <!-- Brand identity -->
+      <section class="card card-lg flex flex-col gap-5 p-5 sm:p-6">
+        <div class="flex flex-col gap-0.5">
+          <h3 class="text-sm font-semibold text-content">Brand identity</h3>
+          <p class="text-xs text-faint">The name and logo shown in the sidebar.</p>
+        </div>
+
+        <label class="flex flex-col gap-1.5">
+          <span class="text-sm font-medium text-content">Workspace name</span>
+          <input
+            type="text"
+            maxlength="24"
+            [value]="model.appName()"
+            (input)="model.setAppName($any($event.target).value)"
+            class="field"
+            placeholder="Reports"
+          />
+        </label>
+
+        <div class="flex flex-col gap-2">
+          <span class="text-sm font-medium text-content">Logo</span>
+          <div class="flex items-center gap-4">
+            <div
+              class="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-xl border border-border-soft bg-surface-muted text-faint"
+            >
+              @if (model.logo(); as logo) {
+                <img [src]="logo" alt="Logo preview" class="h-full w-full object-cover" />
+              } @else {
+                <app-icon [path]="icons.image" [size]="24" />
+              }
+            </div>
+            <div class="flex flex-col gap-2">
+              <div class="flex flex-wrap gap-2">
+                <label class="btn-ghost cursor-pointer">
+                  <app-icon [path]="icons.upload" [size]="16" />
+                  Upload logo
+                  <input type="file" accept="image/*" class="hidden" (change)="onLogoSelected($event)" />
+                </label>
+                @if (model.logo()) {
+                  <button type="button" (click)="model.removeLogo()" class="btn-ghost">
+                    <app-icon [path]="icons.trash" [size]="16" />
+                    Remove
+                  </button>
+                }
+              </div>
+              @if (model.logoError(); as err) {
+                <span class="text-xs font-medium text-red-600 dark:text-red-400">{{ err }}</span>
+              } @else {
+                <span class="text-xs text-faint">PNG, JPG or SVG · under 512 KB</span>
+              }
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Colours -->
+      <section class="card card-lg flex flex-col gap-5 p-5 sm:p-6">
+        <div class="flex flex-col gap-0.5">
+          <h3 class="text-sm font-semibold text-content">Brand colours</h3>
+          <p class="text-xs text-faint">Primary drives navigation and charts; accent highlights actions.</p>
+        </div>
+
+        <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
+          <div class="flex flex-col gap-1.5">
+            <span class="text-sm font-medium text-content">Primary</span>
+            <div class="flex items-center gap-3">
+              <input
+                type="color"
+                [value]="model.primary()"
+                (input)="model.setPrimary($any($event.target).value)"
+                class="swatch"
+                aria-label="Primary colour"
+              />
+              <input
+                type="text"
+                [value]="model.primary()"
+                (change)="model.setPrimary($any($event.target).value)"
+                class="field w-32 font-mono uppercase"
+              />
+            </div>
+          </div>
+
+          <div class="flex flex-col gap-1.5">
+            <span class="text-sm font-medium text-content">Accent</span>
+            <div class="flex items-center gap-3">
+              <input
+                type="color"
+                [value]="model.accent()"
+                (input)="model.setAccent($any($event.target).value)"
+                class="swatch"
+                aria-label="Accent colour"
+              />
+              <input
+                type="text"
+                [value]="model.accent()"
+                (change)="model.setAccent($any($event.target).value)"
+                class="field w-32 font-mono uppercase"
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Presets -->
+      <section class="card card-lg flex flex-col gap-5 p-5 sm:p-6">
+        <div class="flex flex-col gap-0.5">
+          <h3 class="text-sm font-semibold text-content">Palette presets</h3>
+          <p class="text-xs text-faint">Apply a curated colour pairing in one click.</p>
+        </div>
+        <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+          @for (preset of model.presets; track preset.name) {
+            <button
+              type="button"
+              (click)="model.applyPreset(preset)"
+              class="preset"
+              [class.preset-active]="model.isActivePreset(preset)"
+            >
+              <span class="flex -space-x-1.5">
+                <span class="dot" [style.background]="preset.primary"></span>
+                <span class="dot" [style.background]="preset.accent"></span>
+              </span>
+              <span class="flex-1 text-left text-sm font-medium text-content">{{ preset.name }}</span>
+              @if (model.isActivePreset(preset)) {
+                <span class="text-brand-600 dark:text-brand-300">
+                  <app-icon [path]="icons.check" [size]="16" />
+                </span>
+              }
+            </button>
+          }
+        </div>
+      </section>
+
+      <!-- Appearance -->
+      <section class="card card-lg flex flex-col gap-4 p-5 sm:p-6">
+        <div class="flex flex-col gap-0.5">
+          <h3 class="text-sm font-semibold text-content">Theme</h3>
+          <p class="text-xs text-faint">Choose a light or dark interface.</p>
+        </div>
+        <div class="inline-flex w-fit gap-1 rounded-xl border border-border-soft bg-surface-muted p-1">
+          <button type="button" class="seg" [class.seg-active]="!model.isDark()" (click)="model.setDark(false)">
+            <app-icon [path]="icons.sun" [size]="16" />
+            Light
+          </button>
+          <button type="button" class="seg" [class.seg-active]="model.isDark()" (click)="model.setDark(true)">
+            <app-icon [path]="icons.moon" [size]="16" />
+            Dark
+          </button>
+        </div>
+      </section>
+    </div>
+
+    <!-- Live preview -->
+    <div class="lg:col-span-1">
+      <div class="lg:sticky lg:top-24">
+        <section class="card card-lg flex flex-col gap-5 p-5 sm:p-6">
+          <div class="flex flex-col gap-0.5">
+            <h3 class="text-sm font-semibold text-content">Live preview</h3>
+            <p class="text-xs text-faint">Reflects your current theme.</p>
+          </div>
+
+          <div class="card flex flex-col gap-3 p-4">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold uppercase tracking-wider text-faint">Backorder lines</span>
+              <span
+                class="grid h-9 w-9 place-items-center rounded-xl text-white"
+                style="background: linear-gradient(135deg, var(--color-accent-500), var(--color-accent-600))"
+              >
+                <app-icon [path]="icons.image" [size]="16" />
+              </span>
+            </div>
+            <span class="text-2xl font-bold tracking-tight text-content">296</span>
+          </div>
+
+          <div class="flex flex-wrap gap-2">
+            <app-status-badge label="Confirmed" tone="success" />
+            <app-status-badge label="Backorder" tone="warning" />
+            <app-status-badge label="Invoiced" tone="info" />
+          </div>
+
+          <div class="flex flex-col gap-2">
+            <div class="h-2 rounded-full" style="width: 90%; background: var(--color-chart-1)"></div>
+            <div class="h-2 rounded-full" style="width: 65%; background: var(--color-chart-2)"></div>
+            <div class="h-2 rounded-full" style="width: 40%; background: var(--color-chart-3)"></div>
+          </div>
+
+          <button type="button" class="btn-primary w-full justify-center">Primary action</button>
+        </section>
+      </div>
+    </div>
+  </div>
+</div>

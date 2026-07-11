@@ -1,0 +1,68 @@
+:host {
+  display: block;
+}
+
+.select-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.select {
+  appearance: none;
+  -webkit-appearance: none;
+  border-radius: 0.6rem;
+  border: 1px solid var(--border-soft);
+  background-color: var(--surface);
+  padding: 0.5rem 2rem 0.5rem 0.8rem;
+  font-size: 0.85rem;
+  color: var(--content);
+  cursor: pointer;
+  outline: none;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+  text-overflow: ellipsis;
+}
+
+.select:hover {
+  background-color: var(--surface-muted);
+}
+
+.select:focus {
+  border-color: var(--color-brand-400);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-brand-500) 16%, transparent);
+}
+
+.select-chevron {
+  pointer-events: none;
+  position: absolute;
+  right: 0.6rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--content-faint);
+}
+
+.pager-btn {
+  display: grid;
+  place-items: center;
+  height: 2rem;
+  width: 2rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border-soft);
+  background-color: var(--surface);
+  color: var(--content-muted);
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.pager-btn:hover:not(:disabled) {
+  background-color: var(--surface-muted);
+  color: var(--content);
+}
+
+.pager-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}

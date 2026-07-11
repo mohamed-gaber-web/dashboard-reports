@@ -1,0 +1,16 @@
+<div class="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
+  <span class="grid h-12 w-12 place-items-center rounded-full bg-surface-muted text-faint">
+    <app-icon [path]="icon()" [size]="24" />
+  </span>
+  <div class="flex flex-col gap-1">
+    <h3 class="text-sm font-semibold text-content">{{ title() }}</h3>
+    @if (message(); as m) {
+      <p class="max-w-sm text-sm text-muted">{{ m }}</p>
+    }
+  </div>
+  @if (retryLabel(); as label) {
+    <button type="button" (click)="retry.emit()" class="btn-primary mt-1">
+      {{ label }}
+    </button>
+  }
+</div>

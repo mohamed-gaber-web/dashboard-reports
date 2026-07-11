@@ -1,0 +1,99 @@
+:host {
+  display: block;
+}
+
+.field {
+  width: 100%;
+  border-radius: 0.6rem;
+  border: 1px solid var(--border-soft);
+  background-color: var(--surface);
+  padding: 0.55rem 0.75rem;
+  font-size: 0.875rem;
+  color: var(--content);
+  outline: none;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.field:focus {
+  border-color: var(--color-brand-400);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-brand-500) 18%, transparent);
+}
+
+.field::placeholder {
+  color: var(--content-faint);
+}
+
+/* Native colour picker, restyled into a clean square swatch. */
+.swatch {
+  height: 2.5rem;
+  width: 2.5rem;
+  cursor: pointer;
+  border-radius: 0.6rem;
+  border: 1px solid var(--border-soft);
+  background: transparent;
+  padding: 0;
+}
+.swatch::-webkit-color-swatch-wrapper {
+  padding: 3px;
+}
+.swatch::-webkit-color-swatch {
+  border: none;
+  border-radius: 0.4rem;
+}
+.swatch::-moz-color-swatch {
+  border: none;
+  border-radius: 0.4rem;
+}
+
+/* Preset pill */
+.preset {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  border-radius: 0.75rem;
+  border: 1px solid var(--border-soft);
+  background-color: var(--surface);
+  padding: 0.7rem 0.85rem;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.preset:hover {
+  background-color: var(--surface-muted);
+}
+.preset-active {
+  border-color: var(--color-brand-500);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-brand-500) 30%, transparent);
+}
+
+.dot {
+  height: 1.1rem;
+  width: 1.1rem;
+  border-radius: 9999px;
+  border: 2px solid var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Segmented theme control */
+.seg {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border-radius: 0.6rem;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--content-muted);
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.seg-active {
+  background-color: var(--surface);
+  color: var(--content);
+  box-shadow: var(--shadow-sm);
+}

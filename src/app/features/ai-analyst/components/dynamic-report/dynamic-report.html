@@ -1,0 +1,34 @@
+<div class="flex flex-col gap-5">
+  <div class="flex flex-col gap-0.5">
+    <h2 class="text-lg font-semibold text-content">{{ result().title }}</h2>
+    @if (result().description; as d) {
+      <p class="text-sm text-muted">{{ d }} · {{ result().rowCount }} rows</p>
+    }
+  </div>
+
+  @if (result().kpis.length) {
+    <section class="grid grid-cols-1 gap-4 sm:grid-cols-2 {{ kpiCols() }}">
+      @for (kpi of result().kpis; track $index) {
+        <app-kpi-card [label]="kpi.label" [value]="kpi.value" [accent]="accent($index)" />
+      }
+    </section>
+  }
+
+  @if (result().charts.length) {
+    <section class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      @for (chart of result().charts; track $index) {
+        <app-chart-card [title]="chart.title">
+          @if (chart.type === 'donut') {
+            <app-donut-chart [data]="chart.data" />
+          } @else {
+            <app-bar-chart [data]="chart.data" />
+          }
+        </app-chart-card>
+      }
+    </section>
+  }
+
+  @if (result().table; as table) {
+    <app-data-table [columns]="table.columns" [rows]="table.rows" />
+  }
+</div>

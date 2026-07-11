@@ -1,0 +1,135 @@
+<div class="flex flex-col gap-6">
+  <app-page-header
+    eyebrow="Sales Order"
+    title="Sales Order List"
+    subtitle="Every open backorder line in company USMF, with delivery dates and amounts."
+  >
+    <button type="button" (click)="model.load()" [disabled]="model.loading()" class="btn-ghost">
+      <app-icon [path]="icons.refresh" [size]="16" />
+      Refresh
+    </button>
+  </app-page-header>
+
+  @if (model.loading()) {
+    <app-spinner label="Loading sales orders from D365…" />
+  } @else if (model.error(); as error) {
+    <div class="card">
+      <app-empty-state
+        title="Something went wrong"
+        [message]="error"
+        retryLabel="Try again"
+        (retry)="model.load()"
+      />
+    </div>
+  } @else if (!model.hasData()) {
+    <div class="card">
+      <app-empty-state
+        title="No open backorders"
+        message="There are no backorder lines with remaining inventory right now."
+        [icon]="icons.empty"
+      />
+    </div>
+  } @else {
+    <section class="flex flex-col gap-4">
+      <!-- Search + filters -->
+      <div class="flex flex-wrap items-center gap-2">
+        <div class="relative">
+          <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint">
+            <app-icon [path]="icons.search" [size]="16" />
+          </span>
+          <input
+            type="search"
+            placeholder="Search order, item, customer…"
+            [value]="model.search()"
+            (input)="model.setSearch($any($event.target).value)"
+            class="w-full rounded-lg border border-border-soft bg-surface py-2 pl-9 pr-3 text-sm text-content outline-none transition-colors placeholder:text-faint focus:border-brand-400 sm:w-72"
+          />
+        </div>
+
+        <div class="select-wrap">
+          <select
+            class="select"
+            [value]="model.status()"
+            (change)="model.setStatus($any($event.target).value)"
+            aria-label="Filter by status"
+          >
+            <option value="">All statuses</option>
+            @for (opt of model.statusOptions(); track opt.value) {
+              <option [value]="opt.value">{{ opt.label }}</option>
+            }
+          </select>
+          <span class="select-chevron"><app-icon [path]="icons.chevron" [size]="15" /></span>
+        </div>
+
+        <div class="select-wrap">
+          <select
+            class="select"
+            [value]="model.currency()"
+            (change)="model.setCurrency($any($event.target).value)"
+            aria-label="Filter by currency"
+          >
+            <option value="">All currencies</option>
+            @for (opt of model.currencyOptions(); track opt.value) {
+              <option [value]="opt.value">{{ opt.label }}</option>
+            }
+          </select>
+          <span class="select-chevron"><app-icon [path]="icons.chevron" [size]="15" /></span>
+        </div>
+
+        <div class="select-wrap">
+          <select
+            class="select max-w-56"
+            [value]="model.customer()"
+            (change)="model.setCustomer($any($event.target).value)"
+            aria-label="Filter by customer"
+          >
+            <option value="">All customers</option>
+            @for (opt of model.customerOptions(); track opt.value) {
+              <option [value]="opt.value">{{ opt.label }}</option>
+            }
+          </select>
+          <span class="select-chevron"><app-icon [path]="icons.chevron" [size]="15" /></span>
+        </div>
+
+        @if (model.hasActiveFilters()) {
+          <button type="button" (click)="model.clearFilters()" class="btn-ghost">
+            <app-icon [path]="icons.clear" [size]="15" />
+            Clear
+            @if (model.activeFilterCount()) {
+              <span class="rounded-full bg-brand-600 px-1.5 text-xs font-semibold text-white">
+                {{ model.activeFilterCount() }}
+              </span>
+            }
+          </button>
+        }
+      </div>
+
+      <!-- Result count + pager -->
+      <div class="flex items-center justify-between">
+        <span class="text-sm text-muted tabular-nums">{{ model.rangeLabel() }}</span>
+        <div class="flex items-center gap-2">
+          <button
+            type="button"
+            (click)="model.prevPage()"
+            [disabled]="!model.canPrev()"
+            class="pager-btn"
+            aria-label="Previous page"
+          >
+            <app-icon [path]="icons.prev" [size]="16" />
+          </button>
+          <button
+            type="button"
+            (click)="model.nextPage()"
+            [disabled]="!model.canNext()"
+            class="pager-btn"
+            aria-label="Next page"
+          >
+            <app-icon [path]="icons.next" [size]="16" />
+          </button>
+        </div>
+      </div>
+
+      <app-data-table [columns]="model.columns" [rows]="model.pagedRows()" />
+    </section>
+  }
+</div>

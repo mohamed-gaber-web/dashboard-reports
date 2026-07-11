@@ -1,0 +1,11 @@
+<section class="card card-lg flex h-full flex-col gap-5 p-5 sm:p-6">
+  <header class="flex flex-col gap-0.5">
+    <h3 class="text-sm font-semibold text-content">{{ title() }}</h3>
+    @if (subtitle(); as s) {
+      <p class="text-xs text-faint">{{ s }}</p>
+    }
+  </header>
+  <div class="min-h-0 flex-1">
+    <ng-content />
+  </div>
+</section>

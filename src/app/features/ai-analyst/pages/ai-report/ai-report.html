@@ -1,0 +1,62 @@
+<div class="flex flex-col gap-6">
+  <app-page-header
+    eyebrow="AI Analyst"
+    title="Chat with your data"
+    subtitle="Ask questions and build dashboard reports in plain language — then export to Excel or PDF."
+  >
+    @if (model.hasReport()) {
+      <button type="button" (click)="model.exportExcel()" class="btn-ghost">
+        <app-icon [path]="icons.excel" [size]="16" />
+        Excel
+      </button>
+      <button type="button" (click)="model.exportPdf()" class="btn-ghost">
+        <app-icon [path]="icons.pdf" [size]="16" />
+        PDF
+      </button>
+    }
+  </app-page-header>
+
+  <div class="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+    <!-- Report area -->
+    <main class="order-2 min-w-0 xl:order-1">
+      @if (model.dataLoading()) {
+        <div class="card card-lg">
+          <app-spinner label="Loading your dataset…" />
+        </div>
+      } @else if (model.dataError(); as error) {
+        <div class="card card-lg">
+          <app-empty-state
+            title="Couldn’t load data"
+            [message]="error"
+            retryLabel="Try again"
+            (retry)="model.load()"
+          />
+        </div>
+      } @else if (model.result(); as result) {
+        <app-dynamic-report [result]="result" />
+      } @else {
+        <div class="card card-lg">
+          <app-empty-state
+            title="Your report will appear here"
+            message="Ask the AI Analyst a question or describe the dashboard you want. It reads a summary of your data and builds a live report — every number computed locally from D365."
+            [icon]="icons.spark"
+          />
+        </div>
+      }
+    </main>
+
+    <!-- Chat -->
+    <aside class="order-1 xl:order-2">
+      <div class="xl:sticky xl:top-24 h-[70vh] xl:h-[calc(100vh-8rem)]">
+        <app-chat-panel
+          [messages]="model.messages()"
+          [streaming]="model.streaming()"
+          [busy]="model.busy()"
+          [error]="model.chatError()"
+          [suggestions]="model.suggestions"
+          (send)="model.send($event)"
+        />
+      </div>
+    </aside>
+  </div>
+</div>

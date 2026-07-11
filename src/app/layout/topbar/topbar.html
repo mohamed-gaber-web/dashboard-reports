@@ -1,0 +1,36 @@
+<header
+  class="sticky top-0 z-20 flex h-16 items-center gap-3 px-4 text-white sm:px-6"
+  style="
+    background: linear-gradient(90deg, var(--color-brand-700), var(--color-brand-600));
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  "
+>
+  <button type="button" (click)="menu.emit()" class="icon-btn lg:hidden" aria-label="Open navigation">
+    <app-icon [path]="icon.menu" [size]="20" />
+  </button>
+
+  <div class="ml-auto flex items-center gap-1.5 sm:gap-2">
+    <span
+      class="hidden items-center gap-2 rounded-full bg-white/12 px-3 py-1.5 text-xs font-medium text-white/85 ring-1 ring-white/20 sm:inline-flex"
+    >
+      <span
+        class="h-2 w-2 rounded-full"
+        [class]="connected() ? 'bg-emerald-400 shadow-[0_0_0_3px_rgba(52,211,153,0.25)]' : 'bg-amber-400'"
+      ></span>
+      {{ connected() ? 'D365 connected' : 'Connecting…' }}
+    </span>
+
+    <a routerLink="/settings" class="icon-btn" aria-label="Settings">
+      <app-icon [path]="icon.settings" [size]="19" />
+    </a>
+
+    <button
+      type="button"
+      (click)="toggleTheme()"
+      class="icon-btn"
+      [attr.aria-label]="isDark() ? 'Switch to light mode' : 'Switch to dark mode'"
+    >
+      <app-icon [path]="isDark() ? icon.sun : icon.moon" [size]="19" />
+    </button>
+  </div>
+</header>

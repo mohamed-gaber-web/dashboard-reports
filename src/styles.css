@@ -1,0 +1,205 @@
+@import 'tailwindcss';
+
+/* Class-based dark mode: toggled by adding `.dark` to <html>. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Design system v2 — modern, calm, typography-led.
+ * Navy primary (#002559) with orange accent (#F24C1A) by default; every brand
+ * and chart token is a CSS variable, so the Settings module can re-theme the
+ * whole app at runtime by overriding them on <html>.
+ */
+@theme {
+  --font-sans: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+
+  /* Brand scale (overridable at runtime) */
+  --color-brand-50: #eaf0f8;
+  --color-brand-100: #cbd9ee;
+  --color-brand-200: #93aeda;
+  --color-brand-300: #5a82c5;
+  --color-brand-400: #2d5aa8;
+  --color-brand-500: #013a7d;
+  --color-brand-600: #002559;
+  --color-brand-700: #001d46;
+  --color-brand-800: #001536;
+  --color-brand-900: #000d22;
+
+  /* Accent */
+  --color-accent-400: #ff7a4d;
+  --color-accent-500: #f24c1a;
+  --color-accent-600: #d13c10;
+
+  /* Categorical palette for charts */
+  --color-chart-1: #013a7d;
+  --color-chart-2: #f24c1a;
+  --color-chart-3: #2ca58d;
+  --color-chart-4: #8b5cf6;
+  --color-chart-5: #eab308;
+  --color-chart-6: #ec4899;
+  --color-chart-7: #0ea5e9;
+  --color-chart-8: #64748b;
+
+  /* Semantic surfaces — flip with the theme */
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-border-soft: var(--border-soft);
+  --color-content: var(--content);
+  --color-muted: var(--content-muted);
+  --color-faint: var(--content-faint);
+
+  /* Status */
+  --color-success: #15803d;
+  --color-warning: #b45309;
+  --color-danger: #b91c1c;
+  --color-info: #013a7d;
+
+  --radius-xl: 1rem;
+  --radius-2xl: 1.25rem;
+}
+
+/* Light theme (default) */
+:root {
+  --canvas: #f4f6fb;
+  --surface: #ffffff;
+  --surface-muted: #f1f5f9;
+  --border-soft: #e8edf4;
+  --content: #0c1626;
+  --content-muted: #55627a;
+  --content-faint: #8a95a8;
+
+  --shadow-sm: 0 1px 2px rgba(15, 27, 45, 0.04), 0 1px 3px rgba(15, 27, 45, 0.06);
+  --shadow-md: 0 4px 12px rgba(15, 27, 45, 0.06), 0 2px 6px rgba(15, 27, 45, 0.05);
+  --shadow-lg: 0 12px 32px rgba(15, 27, 45, 0.1), 0 4px 12px rgba(15, 27, 45, 0.06);
+  color-scheme: light;
+}
+
+/* Dark theme */
+.dark {
+  --canvas: #080c15;
+  --surface: #101725;
+  --surface-muted: #18212f;
+  --border-soft: #212c3f;
+  --content: #eef2f8;
+  --content-muted: #9aa7bd;
+  --content-faint: #67748c;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.36);
+  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.5);
+  color-scheme: dark;
+}
+
+@layer base {
+  html {
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    background-color: var(--canvas);
+    color: var(--content);
+    /* Soft brand-tinted glow in the corners — subtle, modern depth. */
+    background-image:
+      radial-gradient(
+        60rem 40rem at 100% -10%,
+        color-mix(in srgb, var(--color-brand-500) 8%, transparent),
+        transparent 60%
+      ),
+      radial-gradient(
+        50rem 40rem at -10% 0%,
+        color-mix(in srgb, var(--color-accent-500) 5%, transparent),
+        transparent 55%
+      );
+    background-attachment: fixed;
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--color-brand-500) 22%, transparent);
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-soft) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: var(--border-soft);
+    border-radius: 9999px;
+  }
+}
+
+@layer components {
+  .card {
+    background-color: var(--surface);
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .card-lg {
+    border-radius: var(--radius-2xl);
+  }
+
+  /* Primary action button — brand gradient. */
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    border-radius: 0.7rem;
+    padding: 0.55rem 1rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #fff;
+    background-image: linear-gradient(
+      135deg,
+      var(--color-brand-500),
+      var(--color-brand-600)
+    );
+    box-shadow: var(--shadow-sm);
+    transition:
+      filter 0.15s ease,
+      transform 0.15s ease,
+      box-shadow 0.15s ease;
+  }
+  .btn-primary:hover {
+    filter: brightness(1.08);
+    box-shadow: var(--shadow-md);
+  }
+  .btn-primary:active {
+    transform: translateY(1px);
+  }
+  .btn-primary:disabled {
+    opacity: 0.55;
+    filter: none;
+    box-shadow: none;
+  }
+
+  /* Secondary / ghost button. */
+  .btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    border-radius: 0.7rem;
+    border: 1px solid var(--border-soft);
+    background-color: var(--surface);
+    padding: 0.55rem 1rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--content);
+    transition:
+      background-color 0.15s ease,
+      box-shadow 0.15s ease;
+  }
+  .btn-ghost:hover {
+    background-color: var(--surface-muted);
+    box-shadow: var(--shadow-sm);
+  }
+  .btn-ghost:disabled {
+    opacity: 0.5;
+  }
+}

@@ -1,0 +1,58 @@
+:host {
+  display: block;
+  height: 100%;
+}
+
+.nav-link {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  border-radius: 0.7rem;
+  padding: 0.6rem 0.7rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.72);
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.nav-link:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.nav-group {
+  cursor: pointer;
+}
+
+.nav-link.is-active {
+  background-color: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  font-weight: 600;
+}
+
+/* Left accent indicator on the active item. */
+.nav-link.is-active::before {
+  content: '';
+  position: absolute;
+  left: -0.75rem;
+  top: 50%;
+  height: 1.15rem;
+  width: 3px;
+  border-radius: 9999px;
+  background: #fff;
+  transform: translateY(-50%);
+}
+
+.chevron {
+  display: inline-flex;
+  color: rgba(255, 255, 255, 0.5);
+  transition: transform 0.18s ease;
+}
+
+.chevron-open {
+  transform: rotate(180deg);
+}
