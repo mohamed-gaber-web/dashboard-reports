@@ -16,6 +16,29 @@
     }
   </app-page-header>
 
+  <!-- Data source tabs: swap the dataset the AI Analyst chats against. -->
+  <div
+    role="tablist"
+    class="inline-flex self-start gap-1 rounded-xl border border-border-soft bg-surface p-1"
+  >
+    @for (source of model.sources; track source.id) {
+      <button
+        type="button"
+        role="tab"
+        [attr.aria-selected]="source.id === model.activeId()"
+        (click)="model.selectSource(source.id)"
+        class="rounded-lg px-4 py-1.5 text-sm font-medium transition-colors"
+        [class]="
+          source.id === model.activeId()
+            ? 'bg-brand-600 text-white shadow-sm'
+            : 'text-muted hover:text-content'
+        "
+      >
+        {{ source.label }}
+      </button>
+    }
+  </div>
+
   <div class="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
     <!-- Report area -->
     <main class="order-2 min-w-0 xl:order-1">
@@ -53,7 +76,7 @@
           [streaming]="model.streaming()"
           [busy]="model.busy()"
           [error]="model.chatError()"
-          [suggestions]="model.suggestions"
+          [suggestions]="model.suggestions()"
           (send)="model.send($event)"
         />
       </div>

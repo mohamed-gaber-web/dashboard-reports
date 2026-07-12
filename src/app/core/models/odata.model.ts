@@ -14,4 +14,6 @@ export interface ODataQuery {
   top?: number;
   skip?: number;
   count?: boolean;
+  /** Adds `cross-company=true` so the query spans all legal entities. */
+  crossCompany?: boolean;
 }

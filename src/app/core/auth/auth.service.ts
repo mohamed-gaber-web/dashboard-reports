@@ -9,10 +9,29 @@ interface TokenResponse {
   access_token: string;
 }
 
-const STORAGE_KEYS = {
+/**
+ * The per-source Azure AD parameters the browser sends to `/api/token`. The
+ * matching client secret + tenant are injected server-side, keyed off clientId.
+ */
+export interface AuthConfig {
+  clientId: string;
+  clientSecret: string;
+  scope: string;
+  grantType: string;
+}
+
+const STORAGE_PREFIX = {
   ACCESS_TOKEN: 'rd.access_token',
   TOKEN_EXPIRY: 'rd.token_expiry',
 } as const;
+
+/** Tokens are cached per scope so multiple D365 sources don't clobber each other. */
+function tokenKey(scope: string): string {
+  return `${STORAGE_PREFIX.ACCESS_TOKEN}::${scope}`;
+}
+function expiryKey(scope: string): string {
+  return `${STORAGE_PREFIX.TOKEN_EXPIRY}::${scope}`;
+}
 
 /** Refresh the token this many ms before it actually expires. */
 const REFRESH_BUFFER_MS = 5 * 60 * 1000;
@@ -26,8 +45,8 @@ const REFRESH_BUFFER_MS = 5 * 60 * 1000;
 export class AuthService {
   private readonly http = inject(HttpClient);
 
-  /** In-flight fetch, shared so concurrent callers don't stampede Azure AD. */
-  private pending: Promise<string> | null = null;
+  /** In-flight fetches, keyed by scope, so concurrent callers don't stampede Azure AD. */
+  private readonly pending = new Map<string, Promise<string>>();
 
   private readonly _ready = signal(false);
   /** True once a valid token is available. */
@@ -46,32 +65,41 @@ export class AuthService {
     }
   }
 
-  /** Returns a valid token, fetching or refreshing as needed. */
-  getToken(): Promise<string> {
-    const cached = this.readValidToken();
+  /**
+   * Returns a valid token for the given source, fetching or refreshing as
+   * needed. Defaults to the primary D365 source; a second source (e.g. Shatat)
+   * passes its own `AuthConfig`.
+   */
+  getToken(config: AuthConfig = environment.auth): Promise<string> {
+    const cached = this.readValidToken(config.scope);
     if (cached) {
       this._ready.set(true);
       return Promise.resolve(cached);
     }
-    return (this.pending ??= this.fetchToken().finally(() => (this.pending = null)));
+    let promise = this.pending.get(config.scope);
+    if (!promise) {
+      promise = this.fetchToken(config).finally(() => this.pending.delete(config.scope));
+      this.pending.set(config.scope, promise);
+    }
+    return promise;
   }
 
-  /** Drop the cached token so the next request forces a refresh. */
-  clearToken(): void {
-    localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
-    localStorage.removeItem(STORAGE_KEYS.TOKEN_EXPIRY);
+  /** Drop the cached token for a scope so the next request forces a refresh. */
+  clearToken(scope: string = environment.auth.scope): void {
+    localStorage.removeItem(tokenKey(scope));
+    localStorage.removeItem(expiryKey(scope));
     this._ready.set(false);
   }
 
-  private readValidToken(): string | null {
-    const token = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
-    const expiry = Number(localStorage.getItem(STORAGE_KEYS.TOKEN_EXPIRY));
+  private readValidToken(scope: string): string | null {
+    const token = localStorage.getItem(tokenKey(scope));
+    const expiry = Number(localStorage.getItem(expiryKey(scope)));
     if (!token || !expiry) return null;
     return Date.now() < expiry - REFRESH_BUFFER_MS ? token : null;
   }
 
-  private async fetchToken(): Promise<string> {
-    const { clientId, clientSecret, scope, grantType } = environment.auth;
+  private async fetchToken(config: AuthConfig): Promise<string> {
+    const { clientId, clientSecret, scope, grantType } = config;
 
     let body = new HttpParams()
       .set('grant_type', grantType)
@@ -91,8 +119,8 @@ export class AuthService {
     );
 
     const expiry = Date.now() + response.expires_in * 1000;
-    localStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, response.access_token);
-    localStorage.setItem(STORAGE_KEYS.TOKEN_EXPIRY, String(expiry));
+    localStorage.setItem(tokenKey(scope), response.access_token);
+    localStorage.setItem(expiryKey(scope), String(expiry));
     this._ready.set(true);
     return response.access_token;
   }

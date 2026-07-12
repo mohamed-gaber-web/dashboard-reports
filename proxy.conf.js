@@ -19,6 +19,16 @@ const stripBrowserOrigin = (proxy) => {
   proxy.on('proxyReq', (proxyReq) => {
     proxyReq.removeHeader('origin');
     proxyReq.removeHeader('referer');
+    // D365 auth is bearer-only. Never forward browser cookies to it, and don't
+    // let cookies bloat the request either.
+    proxyReq.removeHeader('cookie');
+  });
+  // D365 responds with affinity/session Set-Cookie headers that have no Domain,
+  // so the browser stores them against localhost:4200. They accumulate on every
+  // request until the dev server rejects the headers with a 431. We authenticate
+  // with a bearer token and never need these cookies — drop them at the proxy.
+  proxy.on('proxyRes', (proxyRes) => {
+    delete proxyRes.headers['set-cookie'];
   });
 };
 
@@ -37,11 +47,20 @@ module.exports = {
     secure: false,
   },
 
-  // D365 OData API.
+  // D365 OData API — primary source (Growpath).
   '/data': {
     target: 'https://growpath.sandbox.operations.eu.dynamics.com',
     changeOrigin: true,
     secure: true,
+    configure: stripBrowserOrigin,
+  },
+
+  // D365 OData API — second source (Shatat UAT). `/shatat-data/*` -> that host's `/data/*`.
+  '/shatat-data': {
+    target: 'https://shatat-uat.sandbox.operations.dynamics.com',
+    changeOrigin: true,
+    secure: true,
+    pathRewrite: { '^/shatat-data': '/data' },
     configure: stripBrowserOrigin,
   },
 };

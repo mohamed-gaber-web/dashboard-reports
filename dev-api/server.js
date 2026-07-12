@@ -54,5 +54,8 @@ const server = http.createServer((req, res) => {
 server.listen(PORT, () => {
   const ai = process.env.OPENROUTER_API_KEY ? 'AI ✓' : 'AI ✗ (OPENROUTER_API_KEY)';
   const az = process.env.AZURE_CLIENT_SECRET ? 'D365 ✓' : 'D365 ✗ (AZURE_CLIENT_SECRET)';
-  console.log(`[dev-api] listening on http://localhost:${PORT}  [${ai}] [${az}]`);
+  const sh = process.env.AZURE_CLIENT_SECRET_SHATAT
+    ? 'Shatat ✓'
+    : 'Shatat ✗ (AZURE_CLIENT_SECRET_SHATAT)';
+  console.log(`[dev-api] listening on http://localhost:${PORT}  [${ai}] [${az}] [${sh}]`);
 });

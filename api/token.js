@@ -7,12 +7,42 @@
  *
  * Runs unchanged as a Vercel serverless function and under dev-api/server.js.
  *
- * Env: AZURE_CLIENT_SECRET (required). Optional: AZURE_TENANT_ID, AZURE_TOKEN_URL.
+ * Supports MULTIPLE D365 sources (each its own app registration + tenant). The
+ * correct secret + tenant are chosen from the incoming `client_id`.
+ *
+ * Env (primary): AZURE_CLIENT_SECRET (required). Optional: AZURE_TENANT_ID, AZURE_TOKEN_URL.
+ * Env (Shatat):  AZURE_CLIENT_SECRET_SHATAT. Optional: AZURE_TENANT_ID_SHATAT.
  */
 
-const TENANT = process.env.AZURE_TENANT_ID || '26c58d65-b577-4f92-aed2-cec1395d146d';
-const TOKEN_URL =
-  process.env.AZURE_TOKEN_URL || `https://login.microsoftonline.com/${TENANT}/oauth2/v2.0/token`;
+const DEFAULT_TENANT = process.env.AZURE_TENANT_ID || '26c58d65-b577-4f92-aed2-cec1395d146d';
+
+/**
+ * Per-client-id credentials, resolved server-side. The browser only sends the
+ * client_id + scope; the secret and tenant never leave the server.
+ */
+const CLIENTS = {
+  // Primary source (Growpath).
+  'db61ee09-84a1-4912-b319-709480fa243a': {
+    secretEnv: 'AZURE_CLIENT_SECRET',
+    tenant: DEFAULT_TENANT,
+    tokenUrlOverride: process.env.AZURE_TOKEN_URL,
+  },
+  // Second source (Shatat UAT).
+  'af9c6191-37aa-4bb4-a623-5e7f2c364c17': {
+    secretEnv: 'AZURE_CLIENT_SECRET_SHATAT',
+    tenant: process.env.AZURE_TENANT_ID_SHATAT || 'be88f713-a964-488f-89ef-00a04bc0f789',
+  },
+};
+
+function resolveClient(clientId) {
+  // Fall back to the primary config for an unknown/absent client_id so existing
+  // callers keep working.
+  const cfg = CLIENTS[clientId] || CLIENTS['db61ee09-84a1-4912-b319-709480fa243a'];
+  const tokenUrl =
+    cfg.tokenUrlOverride ||
+    `https://login.microsoftonline.com/${cfg.tenant}/oauth2/v2.0/token`;
+  return { secret: process.env[cfg.secretEnv], tokenUrl, secretEnv: cfg.secretEnv };
+}
 
 async function readRaw(req) {
   if (typeof req.body === 'string') return req.body;
@@ -35,17 +65,17 @@ module.exports = async function handler(req, res) {
   res.setHeader('Content-Type', 'application/json');
 
   try {
-    const secret = process.env.AZURE_CLIENT_SECRET;
+    const params = new URLSearchParams(await readRaw(req));
+    const { secret, tokenUrl, secretEnv } = resolveClient(params.get('client_id'));
     if (!secret) {
       res.statusCode = 500;
-      res.end(JSON.stringify({ error: 'AZURE_CLIENT_SECRET is not set on the server.' }));
+      res.end(JSON.stringify({ error: `${secretEnv} is not set on the server.` }));
       return;
     }
 
-    const params = new URLSearchParams(await readRaw(req));
     params.set('client_secret', secret);
 
-    const azure = await fetch(TOKEN_URL, {
+    const azure = await fetch(tokenUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: params.toString(),

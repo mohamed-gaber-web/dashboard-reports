@@ -22,4 +22,17 @@ export const environment = {
   d365BaseUrl: 'https://growpath.sandbox.operations.eu.dynamics.com',
 
   defaultCompany: 'usmf',
+
+  /** Second D365 source — Shatat UAT (`Sha_SerialTrans`). See environment.ts. */
+  shatat: {
+    dataPath: '/shatat-data',
+    d365BaseUrl: 'https://shatat-uat.sandbox.operations.dynamics.com',
+    company: '001',
+    auth: {
+      clientId: 'af9c6191-37aa-4bb4-a623-5e7f2c364c17',
+      clientSecret: '',
+      scope: 'https://shatat-uat.sandbox.operations.dynamics.com/.default',
+      grantType: 'client_credentials',
+    },
+  },
 };

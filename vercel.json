@@ -8,7 +8,11 @@
       "destination": "https://growpath.sandbox.operations.eu.dynamics.com/data/:path*"
     },
     {
-      "source": "/((?!api/|data/).*)",
+      "source": "/shatat-data/:path*",
+      "destination": "https://shatat-uat.sandbox.operations.dynamics.com/data/:path*"
+    },
+    {
+      "source": "/((?!api/|data/|shatat-data/).*)",
       "destination": "/index.html"
     }
   ]

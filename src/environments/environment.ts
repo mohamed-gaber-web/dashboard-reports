@@ -34,4 +34,25 @@ export const environment = {
 
   /** Default D365 legal entity used by report filters. */
   defaultCompany: 'usmf',
+
+  /**
+   * Second D365 source — Shatat UAT (entity `Sha_SerialTrans`). A DIFFERENT
+   * tenant/app-registration/host than the primary source above, so it carries
+   * its own auth block. Same rule applies: `d365BaseUrl` and `auth.scope` must
+   * target the same tenant. Browser requests use `dataPath` (`/shatat-data`),
+   * which the dev proxy / vercel rewrite forwards to `d365BaseUrl/data`.
+   * The client secret is injected server-side by `/api/token`
+   * (AZURE_CLIENT_SECRET_SHATAT), keyed off the client_id — never in the bundle.
+   */
+  shatat: {
+    dataPath: '/shatat-data',
+    d365BaseUrl: 'https://shatat-uat.sandbox.operations.dynamics.com',
+    company: '001',
+    auth: {
+      clientId: 'af9c6191-37aa-4bb4-a623-5e7f2c364c17',
+      clientSecret: '',
+      scope: 'https://shatat-uat.sandbox.operations.dynamics.com/.default',
+      grantType: 'client_credentials',
+    },
+  },
 };

@@ -1,32 +1,83 @@
 import { Injectable, DestroyRef, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Observable } from 'rxjs';
+import { ODataResponse } from '../../../../core/models/odata.model';
 import { SalesOrderService } from '../../../sales-order/services/sales-order.service';
-import { SalesBackorderRecord } from '../../../sales-order/models/sales-order.model';
+import { ShatatSerialTransService } from '../../../shatat/services/shatat-serial-trans.service';
 import { ChatApiService } from '../../services/chat-api.service';
 import { DataContextService } from '../../services/data-context.service';
 import { ReportEngineService } from '../../services/report-engine.service';
 import { ExportService } from '../../services/export.service';
 import { ChatMessage } from '../../models/chat-message.model';
+import { FieldMeta } from '../../models/field-meta.model';
 import { ReportResult, ReportSpec } from '../../models/report-spec.model';
 import { SALES_ORDER_FIELDS } from '../../sales-order-fields';
+import { SHATAT_SERIAL_TRANS_FIELDS } from '../../shatat-serial-trans-fields';
 
 type Row = Record<string, unknown>;
 
+/** A selectable dataset the AI Analyst can chat against (one per tab). */
+export interface AnalystSource {
+  id: string;
+  label: string;
+  fields: FieldMeta[];
+  suggestions: string[];
+  load: () => Observable<ODataResponse<Row>>;
+}
+
 /**
- * ViewModel for the AI Analyst page. Owns the dataset, the conversation, the
- * streaming reply, and the currently rendered report. The view only binds.
+ * ViewModel for the AI Analyst page. Owns the active data source, the dataset,
+ * the conversation, the streaming reply, and the currently rendered report.
+ * Two tabs (Sales Order / Shatat) swap the source; everything below — context,
+ * engine, chat — is source-agnostic. The view only binds.
  */
 @Injectable()
 export class AiReportModel {
   private readonly sales = inject(SalesOrderService);
+  private readonly shatat = inject(ShatatSerialTransService);
   private readonly context = inject(DataContextService);
   private readonly engine = inject(ReportEngineService);
   private readonly chat = inject(ChatApiService);
   private readonly exporter = inject(ExportService);
   private readonly destroyRef = inject(DestroyRef);
 
-  private readonly fields = SALES_ORDER_FIELDS;
-  private readonly _records = signal<SalesBackorderRecord[]>([]);
+  /** The two data sources exposed as tabs. */
+  readonly sources: AnalystSource[] = [
+    {
+      id: 'sales-order',
+      label: 'Sales Order',
+      fields: SALES_ORDER_FIELDS,
+      suggestions: [
+        'Summarise the open backorders',
+        'Show units remaining by customer',
+        'Break down lines by currency as a donut',
+        'Which items have the most backorder quantity?',
+      ],
+      load: () =>
+        this.sales.getBackorders() as unknown as Observable<ODataResponse<Row>>,
+    },
+    {
+      id: 'shatat',
+      label: 'Shatat',
+      fields: SHATAT_SERIAL_TRANS_FIELDS,
+      suggestions: [
+        'Summarise the serial transactions',
+        'Total quantity and amount by transaction type',
+        'Show amount by item as a bar chart',
+        'Which sites have the most transactions?',
+      ],
+      load: () =>
+        this.shatat.getSerialTrans() as unknown as Observable<ODataResponse<Row>>,
+    },
+  ];
+
+  private readonly _activeId = signal(this.sources[0].id);
+  readonly activeId = this._activeId.asReadonly();
+  readonly activeSource = computed(
+    () => this.sources.find((s) => s.id === this._activeId()) ?? this.sources[0],
+  );
+
+  private readonly _records = signal<Row[]>([]);
   private controller?: AbortController;
 
   readonly dataLoading = signal(true);
@@ -41,23 +92,32 @@ export class AiReportModel {
   readonly ready = computed(() => !this.dataLoading() && !this.dataError());
   readonly hasReport = computed(() => this.result() !== null);
 
-  readonly suggestions = [
-    'Summarise the open backorders',
-    'Show units remaining by customer',
-    'Break down lines by currency as a donut',
-    'Which items have the most backorder quantity?',
-  ];
+  readonly suggestions = computed(() => this.activeSource().suggestions);
 
   constructor() {
     this.destroyRef.onDestroy(() => this.controller?.abort());
     this.load();
   }
 
+  /** Switch the active data source (tab) and reload from scratch. */
+  selectSource(id: string): void {
+    if (id === this._activeId()) return;
+    this.controller?.abort();
+    this.messages.set([]);
+    this.streaming.set('');
+    this.busy.set(false);
+    this.chatError.set(null);
+    this.result.set(null);
+    this._records.set([]);
+    this._activeId.set(id);
+    this.load();
+  }
+
   load(): void {
     this.dataLoading.set(true);
     this.dataError.set(null);
-    this.sales
-      .getBackorders()
+    this.activeSource()
+      .load()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (response) => {
@@ -80,8 +140,9 @@ export class AiReportModel {
     this.streaming.set('');
     this.chatError.set(null);
 
-    const rows = this._records() as unknown as Row[];
-    const dataContext = this.context.build(rows, this.fields);
+    const rows = this._records();
+    const fields = this.activeSource().fields;
+    const dataContext = this.context.build(rows, fields);
 
     this.controller?.abort();
     this.controller = new AbortController();
@@ -93,7 +154,7 @@ export class AiReportModel {
         onText: (t) => this.streaming.update((s) => s + t),
         onReport: (spec) => {
           try {
-            this.result.set(this.engine.compute(spec as ReportSpec, rows, this.fields));
+            this.result.set(this.engine.compute(spec as ReportSpec, rows, fields));
           } catch {
             // Malformed spec — ignore; the narration still lands.
           }
