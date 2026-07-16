@@ -58,16 +58,35 @@ export interface ChartResult {
   data: ChartDatum[];
 }
 
+/**
+ * The `rows` field used to be a single array capped at 100, while a comment
+ * claimed "export still receives the full filtered set". It did not — the export
+ * silently shipped 100 rows. The two audiences are split so a caller has to say
+ * which one it means, and the compiler catches anyone who gets it wrong.
+ */
 export interface TableResult {
   columns: TableColumn<Record<string, unknown>>[];
-  rows: Record<string, unknown>[];
+  /** Capped for rendering. NEVER export these — they are not the whole answer. */
+  displayRows: Record<string, unknown>[];
+  /** How many rows the table's query actually matches, from `@odata.count`. */
+  total: number;
+  /** The cap applied to {@link displayRows}. */
+  displayLimit: number;
 }
 
 export interface ReportResult {
   title: string;
   description?: string;
+  /** Rows the report covers — the server's count for the filter, not a page size. */
   rowCount: number;
   kpis: KpiResult[];
   charts: ChartResult[];
   table?: TableResult;
+
+  /**
+   * Clauses the LLM asked for that we refused to compile (unknown field, illegal
+   * operator, hallucinated enum member). Rendered, never silently dropped —
+   * quietly ignoring half a request is how a report ends up confidently wrong.
+   */
+  omitted?: string[];
 }

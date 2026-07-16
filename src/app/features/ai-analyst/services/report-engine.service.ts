@@ -1,17 +1,19 @@
 import { Injectable } from '@angular/core';
 import { ChartDatum } from '../../../shared/models/chart.model';
 import { TableColumn } from '../../../shared/models/table-column.model';
+import { Cube, GroupTotal } from '../../../core/aggregation/aggregate-plan.model';
+import { cubeTopN } from '../../../core/aggregation/aggregation.service';
 import {
   formatCurrency,
   formatDate,
   formatInteger,
   formatQuantity,
 } from '../../../shared/utils/format.util';
+import { AnalystSource } from '../models/analyst-source.model';
 import { FieldMeta, ValueFormat } from '../models/field-meta.model';
 import {
   ChartResult,
   ChartSpec,
-  FilterSpec,
   KpiResult,
   KpiSpec,
   ReportResult,
@@ -20,101 +22,128 @@ import {
 
 type Row = Record<string, unknown>;
 
-/** Row cap for the rendered table (export still receives the full filtered set). */
-const TABLE_DISPLAY_LIMIT = 100;
+/** Row cap for the RENDERED table. Exports must never be built from this. */
+export const TABLE_DISPLAY_LIMIT = 100;
+
+/** Everything needed to turn a spec into a result. */
+export interface ComputeContext {
+  source: AnalystSource;
+  /** The folded slice — the only source of SUM / GROUP BY. */
+  cube: Cube;
+  /** Exact row count for the report's filter, from `@odata.count`. */
+  total: number;
+  /** One page of real rows for the detail table. */
+  tableRows: Row[];
+  /** Clauses the compiler refused. Carried through so the UI can show them. */
+  omitted?: string[];
+}
 
 /**
- * Computes a {@link ReportSpec} against the real, local dataset. Every number
- * shown comes from here, not from the LLM — so figures are always accurate.
+ * Computes a {@link ReportSpec} into a {@link ReportResult}.
+ *
+ * Every number still comes from the data, never from the LLM — that contract is
+ * unchanged. What changed is *where the data is read*. The old engine took a
+ * `Row[]` and scanned it once per KPI and once per chart. That only worked
+ * because the array was secretly truncated to 5,000 rows; at the entity's real
+ * size (~11M) there is no array to scan.
+ *
+ * So the engine now reads a {@link Cube} — a pre-folded set of group totals — and
+ * the exact `@odata.count`. Both are computed from the complete filtered slice,
+ * so the figures are right rather than merely fast.
  */
 @Injectable({ providedIn: 'root' })
 export class ReportEngineService {
-  compute(spec: ReportSpec, rows: readonly Row[], fields: FieldMeta[]): ReportResult {
-    const fieldMap = new Map(fields.map((f) => [f.key, f]));
-    const currency = this.dominantCurrency(rows);
-    const filtered = this.applyFilters(rows, spec.filters ?? []);
+  compute(spec: ReportSpec, ctx: ComputeContext): ReportResult {
+    const { source, cube, total } = ctx;
+    const fieldMap = new Map(source.fields.map((f) => [f.key, f]));
+    const currency = this.currencyOf(ctx);
 
     return {
       title: spec.title,
       description: spec.description,
-      rowCount: filtered.length,
-      kpis: (spec.kpis ?? []).map((k) => this.computeKpi(k, filtered, currency)),
-      charts: (spec.charts ?? []).map((c) => this.computeChart(c, filtered)),
-      table: spec.table ? this.buildTable(spec.table.columns, filtered, fieldMap, currency) : undefined,
+      rowCount: total,
+      kpis: (spec.kpis ?? []).map((k) => this.computeKpi(k, cube, total, currency)),
+      charts: (spec.charts ?? []).map((c) => this.computeChart(c, cube)),
+      table: spec.table
+        ? this.buildTable(spec.table.columns, ctx.tableRows, total, fieldMap, currency)
+        : undefined,
+      omitted: ctx.omitted?.length ? ctx.omitted : undefined,
     };
   }
 
-  // ── Filters ──────────────────────────────────────────────────────────────
-  private applyFilters(rows: readonly Row[], filters: FilterSpec[]): Row[] {
-    if (!filters.length) return [...rows];
-    return rows.filter((row) => filters.every((f) => this.matches(row[f.field], f)));
-  }
-
-  private matches(raw: unknown, f: FilterSpec): boolean {
-    if (f.op === 'contains') {
-      return String(raw ?? '').toLowerCase().includes(String(f.value).toLowerCase());
-    }
-    if (typeof f.value === 'number') {
-      const n = Number(raw);
-      switch (f.op) {
-        case 'gt': return n > f.value;
-        case 'lt': return n < f.value;
-        case 'gte': return n >= f.value;
-        case 'lte': return n <= f.value;
-        case 'neq': return n !== f.value;
-        default: return n === f.value;
-      }
-    }
-    const a = String(raw ?? '').toLowerCase();
-    const b = String(f.value).toLowerCase();
-    return f.op === 'neq' ? a !== b : a === b;
-  }
-
   // ── KPIs ─────────────────────────────────────────────────────────────────
-  private computeKpi(spec: KpiSpec, rows: Row[], currency: string | undefined): KpiResult {
+  private computeKpi(
+    spec: KpiSpec,
+    cube: Cube,
+    total: number,
+    currency: string | undefined,
+  ): KpiResult {
     let value: number;
+
     switch (spec.agg) {
       case 'count':
-        value = rows.length;
+        // The exact server count — no rows were read to get this.
+        value = total;
         break;
       case 'sum':
-        value = this.sum(rows, spec.field);
+        value = cube.totals[spec.field ?? '']?.sum ?? 0;
         break;
-      case 'avg':
-        value = rows.length ? this.sum(rows, spec.field) / rows.length : 0;
+      case 'avg': {
+        const t = cube.totals[spec.field ?? ''];
+        value = t && t.count ? t.sum / t.count : 0;
         break;
+      }
       case 'distinctCount':
-        value = new Set(rows.map((r) => String(r[spec.field ?? ''] ?? ''))).size;
+        // The cube holds every key of a dimension, so this is exact, not sampled.
+        value = Object.keys(cube.dims[spec.field ?? ''] ?? {}).length;
         break;
       default:
         value = 0;
     }
+
     return { label: spec.label, value: this.formatNumber(value, spec.format, currency) };
   }
 
   // ── Charts ───────────────────────────────────────────────────────────────
-  private computeChart(spec: ChartSpec, rows: Row[]): ChartResult {
-    const groups = new Map<string, { total: number; count: number }>();
-    for (const row of rows) {
-      const key = String(row[spec.groupBy] ?? '—') || '—';
-      const bucket = groups.get(key) ?? { total: 0, count: 0 };
-      bucket.count += 1;
-      bucket.total += spec.agg === 'count' ? 1 : this.toNumber(row[spec.valueField ?? '']);
-      groups.set(key, bucket);
-    }
-
-    let data: ChartDatum[] = [...groups.entries()]
-      .map(([label, b]) => ({
-        label,
-        value: spec.agg === 'avg' ? (b.count ? b.total / b.count : 0) : b.total,
-      }))
-      .sort((a, b) => b.value - a.value);
-
+  private computeChart(spec: ChartSpec, cube: Cube): ChartResult {
     const topN = spec.topN ?? 8;
-    if (data.length > topN) {
-      const head = data.slice(0, topN - 1);
-      const other = data.slice(topN - 1).reduce((s, d) => s + d.value, 0);
-      data = [...head, { label: 'Other', value: other }];
+    const bucket = cube.dims[spec.groupBy];
+
+    if (!bucket) return { type: spec.type, title: spec.title, data: [] };
+
+    let data: ChartDatum[];
+
+    if (spec.agg === 'avg') {
+      // cubeTopN can't express a mean, so fold it here from the group's own totals.
+      // Keep sum+count per group so the "Other" bucket can be a COUNT-WEIGHTED
+      // average — a plain mean-of-means would let a 1-row group and a 10,000-row
+      // group count equally.
+      const measure = spec.valueField ?? '';
+      const groups = (Object.entries(bucket) as [string, GroupTotal][])
+        .map(([label, g]) => ({ label, sum: g.sums[measure] ?? 0, count: g.count }))
+        .sort((a, b) => (b.count ? b.sum / b.count : 0) - (a.count ? a.sum / a.count : 0));
+
+      const toDatum = (x: { label: string; sum: number; count: number }): ChartDatum => ({
+        label: x.label,
+        value: x.count ? x.sum / x.count : 0,
+      });
+
+      if (groups.length > topN) {
+        const head = groups.slice(0, topN - 1);
+        const tail = groups.slice(topN - 1);
+        const tailSum = tail.reduce((s, g) => s + g.sum, 0);
+        const tailCount = tail.reduce((s, g) => s + g.count, 0);
+        data = [
+          ...head.map(toDatum),
+          { label: 'Other', value: tailCount ? tailSum / tailCount : 0 },
+        ];
+      } else {
+        data = groups.map(toDatum);
+      }
+    } else {
+      // The cube holds EVERY key, so the "Other" bucket is an exact total, not
+      // an estimate over a truncated top-N.
+      data = cubeTopN(cube, spec.groupBy, spec.agg === 'count' ? undefined : spec.valueField, topN);
     }
 
     return { type: spec.type, title: spec.title, data };
@@ -124,6 +153,7 @@ export class ReportEngineService {
   private buildTable(
     columns: string[],
     rows: Row[],
+    total: number,
     fieldMap: Map<string, FieldMeta>,
     currency: string | undefined,
   ): ReportResult['table'] {
@@ -137,10 +167,37 @@ export class ReportEngineService {
         format: (value) => this.formatValue(value, meta?.format, currency),
       };
     });
-    return { columns: cols, rows: rows.slice(0, TABLE_DISPLAY_LIMIT) };
+
+    return {
+      columns: cols,
+      displayRows: rows.slice(0, TABLE_DISPLAY_LIMIT),
+      total,
+      displayLimit: TABLE_DISPLAY_LIMIT,
+    };
   }
 
-  // ── Formatting ─────────────────────────────────────────────────────────────
+  // ── Formatting ───────────────────────────────────────────────────────────
+  /**
+   * The currency to format with.
+   *
+   * This used to scan every row for a hardcoded `CurrencyCode` field — which
+   * Shatat does not have, so it scanned the whole dataset and always returned
+   * `undefined`. The field now comes from the source, and a source without one
+   * simply has no currency.
+   */
+  private currencyOf(ctx: ComputeContext): string | undefined {
+    const field = ctx.source.currencyField;
+    if (!field) return undefined;
+
+    const bucket = ctx.cube.dims[field];
+    if (bucket) {
+      const entries = Object.entries(bucket) as [string, GroupTotal][];
+      const dominant = entries.sort((a, b) => b[1].count - a[1].count)[0];
+      if (dominant) return dominant[0];
+    }
+    return ctx.tableRows.length ? String(ctx.tableRows[0][field] ?? '') || undefined : undefined;
+  }
+
   private formatValue(value: unknown, format: ValueFormat | undefined, currency?: string): string {
     switch (format) {
       case 'date':
@@ -160,24 +217,5 @@ export class ReportEngineService {
     if (format === 'currency') return formatCurrency(value, currency);
     if (format === 'quantity') return formatQuantity(value);
     return formatInteger(value);
-  }
-
-  private sum(rows: Row[], field: string | undefined): number {
-    if (!field) return rows.length;
-    return rows.reduce((total, r) => total + this.toNumber(r[field]), 0);
-  }
-
-  private toNumber(value: unknown): number {
-    const n = Number(value);
-    return Number.isFinite(n) ? n : 0;
-  }
-
-  private dominantCurrency(rows: readonly Row[]): string | undefined {
-    const counts = new Map<string, number>();
-    for (const r of rows) {
-      const c = String(r['CurrencyCode'] ?? '');
-      if (c) counts.set(c, (counts.get(c) ?? 0) + 1);
-    }
-    return [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
   }
 }

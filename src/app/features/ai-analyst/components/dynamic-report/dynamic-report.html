@@ -1,10 +1,31 @@
 <div class="flex flex-col gap-5">
   <div class="flex flex-col gap-0.5">
     <h2 class="text-lg font-semibold text-content">{{ result().title }}</h2>
-    @if (result().description; as d) {
-      <p class="text-sm text-muted">{{ d }} · {{ result().rowCount }} rows</p>
-    }
+    <p class="text-sm text-muted">
+      @if (result().description; as d) {
+        {{ d }} ·
+      }
+      {{ result().rowCount.toLocaleString() }} rows
+    </p>
   </div>
+
+  <!--
+    Anything the LLM asked for that we refused to compute — an unknown field, an
+    illegal operator, or a slice too large to total. Shown, never dropped: a report
+    that quietly answers half the question is worse than one that says so.
+  -->
+  @if (result().omitted; as omitted) {
+    <div
+      class="rounded-xl border border-amber-300/60 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200"
+    >
+      <p class="font-medium">Some of this request couldn’t be computed</p>
+      <ul class="mt-1.5 list-disc pl-5 leading-relaxed">
+        @for (reason of omitted; track $index) {
+          <li>{{ reason }}</li>
+        }
+      </ul>
+    </div>
+  }
 
   @if (result().kpis.length) {
     <section class="grid grid-cols-1 gap-4 sm:grid-cols-2 {{ kpiCols() }}">
@@ -29,6 +50,16 @@
   }
 
   @if (result().table; as table) {
-    <app-data-table [columns]="table.columns" [rows]="table.rows" />
+    <div class="flex flex-col gap-2">
+      <app-data-table [columns]="table.columns" [rows]="table.displayRows" />
+
+      <!-- The table is a page, not the answer. Say which. -->
+      @if (table.total > table.displayRows.length) {
+        <p class="text-xs text-muted">
+          Showing the first {{ table.displayRows.length }} of
+          {{ table.total.toLocaleString() }} matching rows. Export to get all of them.
+        </p>
+      }
+    </div>
   }
 </div>

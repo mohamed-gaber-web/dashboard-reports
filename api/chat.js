@@ -78,6 +78,9 @@ const REPORT_SHAPE = `{
 }`;
 
 function systemPrompt(dataContext) {
+  const pending = dataContext?.coverage === 'pending';
+  const rowCount = dataContext?.rowCount ?? 0;
+
   return [
     'You are the AI Analyst inside a Dynamics 365 reporting dashboard.',
     'You help users understand their data and build dashboard reports through conversation.',
@@ -99,10 +102,30 @@ function systemPrompt(dataContext) {
     '- Write a short (1–2 sentence) explanation OUTSIDE the tags as normal prose.',
     '- At most one <report> block. If the user only asks a question, answer in prose with no block.',
     '',
+    // The datasets here reach ~11,000,000 rows, and D365 OData cannot GROUP BY or
+    // SUM. Counts are always exact and free; sums require reading every matching
+    // row, which is only done for a slice the user has narrowed. The model must
+    // know which of those worlds it is in, or it will confidently propose a total
+    // that cannot be computed.
+    'IMPORTANT — what can and cannot be computed:',
+    `- This dataset currently has ${rowCount.toLocaleString()} matching rows.`,
+    '- COUNT is always exact and free, at any size. Prefer "agg":"count" KPIs.',
+    '- Filters on a field marked "enum" in the SCHEMA must use a value from its "values" list.',
+    '- "contains" only works on text fields.',
+    pending
+      ? [
+          '- SUMS, AVERAGES, DISTINCT COUNTS and CHARTS ARE NOT AVAILABLE for this slice:',
+          '  it is too large to total. The DATA SUMMARY has no sum_/avg_/top_ entries.',
+          '  DO NOT propose a "sum", "avg" or "distinctCount" KPI, and DO NOT propose charts.',
+          '  Instead: answer with count-based KPIs and a table, and tell the user in prose to',
+          '  narrow the slice (date range, or a search term) so totals can be computed.',
+        ].join('\n')
+      : '- Sums, averages, distinct counts and charts ARE available — the slice has been totalled.',
+    '',
     'SCHEMA (available fields):',
     JSON.stringify(dataContext?.schema ?? [], null, 2),
     '',
-    'DATA SUMMARY (aggregates over the current dataset):',
+    'DATA SUMMARY (aggregates over the current filtered slice):',
     JSON.stringify(dataContext?.summary ?? {}, null, 2),
     '',
     'SAMPLE ROWS:',
