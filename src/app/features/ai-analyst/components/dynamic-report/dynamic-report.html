@@ -1,11 +1,17 @@
-<div class="flex flex-col gap-5">
-  <div class="flex flex-col gap-0.5">
-    <h2 class="text-lg font-semibold text-content">{{ result().title }}</h2>
+<!--
+  Container queries, not viewport ones: this report renders inside a column that
+  is ~360px narrower than the page whenever the chat panel is docked beside it.
+  Breaking on the viewport is how the donut ended up squeezed into a half-width
+  card on a "large" screen.
+-->
+<div class="@container flex flex-col gap-6">
+  <div class="flex flex-col gap-1">
+    <h2 class="text-xl font-semibold tracking-tight text-content">{{ result().title }}</h2>
     <p class="text-sm text-muted">
       @if (result().description; as d) {
         {{ d }} ·
       }
-      {{ result().rowCount.toLocaleString() }} rows
+      <span class="tabular-nums">{{ result().rowCount.toLocaleString() }}</span> rows
     </p>
   </div>
 
@@ -28,17 +34,17 @@
   }
 
   @if (result().kpis.length) {
-    <section class="grid grid-cols-1 gap-4 sm:grid-cols-2 {{ kpiCols() }}">
+    <section class="grid gap-4" [class]="kpiCols()">
       @for (kpi of result().kpis; track $index) {
         <app-kpi-card [label]="kpi.label" [value]="kpi.value" [accent]="accent($index)" />
       }
     </section>
   }
 
-  @if (result().charts.length) {
-    <section class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+  @if (result().charts.length; as chartCount) {
+    <section class="grid gap-4" [class]="chartCols()">
       @for (chart of result().charts; track $index) {
-        <app-chart-card [title]="chart.title">
+        <app-chart-card [title]="chart.title" [subtitle]="chartSubtitle(chart)">
           @if (chart.type === 'donut') {
             <app-donut-chart [data]="chart.data" />
           } @else {
@@ -50,16 +56,33 @@
   }
 
   @if (result().table; as table) {
-    <div class="flex flex-col gap-2">
-      <app-data-table [columns]="table.columns" [rows]="table.displayRows" />
+    <section class="flex flex-col gap-2.5">
+      <header class="flex flex-wrap items-baseline justify-between gap-2">
+        <h3 class="text-sm font-semibold text-content">Detail</h3>
+        <!-- The table is a page, not the answer. Say which, before it is read. -->
+        @if (table.total > table.displayRows.length) {
+          <p class="text-xs text-muted">
+            First <span class="tabular-nums">{{ table.displayRows.length }}</span> of
+            <span class="tabular-nums">{{ table.total.toLocaleString() }}</span> matching rows —
+            export for all of them.
+          </p>
+        } @else {
+          <p class="text-xs text-muted">
+            <span class="tabular-nums">{{ table.total.toLocaleString() }}</span> rows
+          </p>
+        }
+      </header>
 
-      <!-- The table is a page, not the answer. Say which. -->
-      @if (table.total > table.displayRows.length) {
-        <p class="text-xs text-muted">
-          Showing the first {{ table.displayRows.length }} of
-          {{ table.total.toLocaleString() }} matching rows. Export to get all of them.
-        </p>
-      }
-    </div>
+      <!--
+        The detail is capped at a page, but a page of 100 rows still pushes the
+        charts off screen. Scroll it in place, under a header that stays put.
+      -->
+      <app-data-table
+        [columns]="table.columns"
+        [rows]="table.displayRows"
+        maxHeight="26rem"
+        [zebra]="true"
+      />
+    </section>
   }
 </div>

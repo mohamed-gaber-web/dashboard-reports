@@ -106,7 +106,13 @@ export class ReportEngineService {
 
   // ── Charts ───────────────────────────────────────────────────────────────
   private computeChart(spec: ChartSpec, cube: Cube): ChartResult {
-    const topN = spec.topN ?? 8;
+    // A donut is read at a glance, so it is capped harder than a bar: past ~6
+    // slices the arcs are too thin to compare and the tail is all "0%" noise.
+    // Bars stay legible far longer — they are one hue and read off a shared
+    // baseline — so they get a looser cap. Either way the tail folds into an
+    // exact "Other", never a cycled 9th colour.
+    const maxSlices = spec.type === 'donut' ? 6 : 12;
+    const topN = Math.min(spec.topN ?? maxSlices, maxSlices);
     const bucket = cube.dims[spec.groupBy];
 
     if (!bucket) return { type: spec.type, title: spec.title, data: [] };

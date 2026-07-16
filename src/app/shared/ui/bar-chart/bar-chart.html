@@ -1,16 +1,22 @@
 @if (rows().length) {
-  <ul class="flex flex-col gap-3.5">
+  <ul class="flex flex-col gap-3">
     @for (row of rows(); track row.label) {
-      <li class="flex flex-col gap-1.5">
+      <li class="group flex flex-col gap-1.5" [title]="row.label + ' — ' + row.display">
         <div class="flex items-baseline justify-between gap-3 text-sm">
-          <span class="truncate text-muted" [title]="row.label">{{ row.label }}</span>
-          <span class="shrink-0 font-medium tabular-nums text-content">{{ row.display }}</span>
+          <span class="truncate text-muted">{{ row.label }}</span>
+          <span class="flex shrink-0 items-baseline gap-2">
+            <span class="font-medium tabular-nums text-content">{{ row.display }}</span>
+            @if (showShare()) {
+              <span class="w-9 text-right text-xs tabular-nums text-faint">{{ row.share }}</span>
+            }
+          </span>
         </div>
-        <div class="h-2.5 overflow-hidden rounded-full bg-surface-muted">
+        <!-- Track: the unfilled remainder, so every bar reads against the same span. -->
+        <div class="h-2 rounded-full bg-surface-muted">
           <div
-            class="h-full rounded-full transition-[width] duration-500 ease-out"
+            class="h-full rounded-r-[4px] transition-[width] duration-500 ease-out group-hover:brightness-110"
             [style.width.%]="row.widthPct"
-            [style.background]="'linear-gradient(90deg, color-mix(in srgb, ' + row.color + ' 72%, #000), ' + row.color + ')'"
+            [style.backgroundColor]="row.color"
           ></div>
         </div>
       </li>

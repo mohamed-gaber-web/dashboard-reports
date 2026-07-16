@@ -2,6 +2,8 @@
   display: block;
 }
 
-svg circle {
-  transition: stroke-dasharray 0.5s ease-out;
+.donut-arc {
+  transition:
+    stroke-dasharray 0.5s ease-out,
+    opacity 0.15s ease;
 }

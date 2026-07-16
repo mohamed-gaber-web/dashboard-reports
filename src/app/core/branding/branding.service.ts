@@ -1,5 +1,5 @@
 import { Injectable, computed, signal } from '@angular/core';
-import { buildScale, lighten, darken, isValidHex } from '../../shared/utils/color.util';
+import { buildScale, chartHue, lighten, darken, isValidHex } from '../../shared/utils/color.util';
 
 /** User-configurable branding. */
 export interface Branding {
@@ -94,9 +94,12 @@ export class BrandingService {
     root.setProperty('--color-accent-400', lighten(b.accent, 0.18));
     root.setProperty('--color-accent-500', b.accent);
     root.setProperty('--color-accent-600', darken(b.accent, 0.15));
-    // Keep charts in sync with the brand identity.
-    root.setProperty('--color-chart-1', b.primary);
-    root.setProperty('--color-chart-2', b.accent);
+    // Keep charts in sync with the brand identity — but as a chart mark, not as
+    // the raw brand colour. `chartHue` keeps the hue and only corrects lightness
+    // and saturation when the colour would otherwise be unusable as a fill; the
+    // default navy is dark enough to disappear into the dark canvas untouched.
+    root.setProperty('--color-chart-1', chartHue(b.primary));
+    root.setProperty('--color-chart-2', chartHue(b.accent));
   }
 
   private persist(): void {

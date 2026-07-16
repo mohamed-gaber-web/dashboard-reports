@@ -29,15 +29,34 @@
   --color-accent-500: #f24c1a;
   --color-accent-600: #d13c10;
 
-  /* Categorical palette for charts */
-  --color-chart-1: #013a7d;
+  /*
+   * Categorical palette for charts — validated, not eyeballed.
+   *
+   * Every slot clears the same bar against BOTH the light (#ffffff) and dark
+   * (#101725) chart surface: inside the lightness band, over the chroma floor,
+   * >= 3:1 contrast, and adjacent slots separable under simulated colour-vision
+   * deficiency. Slots 1 and 2 are the brand (BrandingService overwrites them
+   * from the user's primary/accent via `chartHue`, which holds this same bar).
+   *
+   * Two things this replaced, both real bugs: slot 1 was the raw brand navy
+   * (#013a7d), which vanished into the dark canvas, and slot 5 was #eab308 —
+   * yellow at 1.92:1 on white, i.e. unreadable.
+   *
+   * Known limit: the checks above cover ADJACENT slots, which is what an ordered
+   * donut and its legend actually need. Distant pairs can still collide — slot 2
+   * (orange) and slot 5 (gold) are near-identical under deuteranopia. Slices are
+   * capped at 6 and always carry a legend, a value and a percentage, so identity
+   * never rests on hue alone. Re-validate with the dataviz skill's
+   * scripts/validate_palette.js before changing any of these.
+   */
+  --color-chart-1: #2269ce;
   --color-chart-2: #f24c1a;
-  --color-chart-3: #2ca58d;
-  --color-chart-4: #8b5cf6;
-  --color-chart-5: #eab308;
+  --color-chart-3: #16a34a;
+  --color-chart-4: #a855f7;
+  --color-chart-5: #b8860b;
   --color-chart-6: #ec4899;
-  --color-chart-7: #0ea5e9;
-  --color-chart-8: #64748b;
+  --color-chart-7: #0891b2;
+  --color-chart-8: #a16207;
 
   /* Semantic surfaces — flip with the theme */
   --color-canvas: var(--canvas);

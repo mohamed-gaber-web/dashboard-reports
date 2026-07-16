@@ -15,6 +15,14 @@ export class DataTableComponent<T> {
   readonly columns = input.required<TableColumn<T>[]>();
   readonly rows = input.required<readonly T[]>();
   readonly emptyMessage = input('No records match the current filters.');
+  /**
+   * Cap the table's height (any CSS length) and scroll the rows inside it. The
+   * header sticks, so a long page of rows never scrolls its own column names
+   * away. Unset = the table grows with its content.
+   */
+  readonly maxHeight = input<string>();
+  /** Alternate row tinting — earns its keep on wide or repetitive rows. */
+  readonly zebra = input(false);
 
   protected display(row: T, col: TableColumn<T>): string {
     const raw = this.raw(row, col);

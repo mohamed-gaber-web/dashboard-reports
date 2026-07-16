@@ -1,11 +1,11 @@
 <div class="card card-lg overflow-hidden">
-  <div class="overflow-x-auto">
+  <div class="overflow-auto" [style.maxHeight]="maxHeight()">
     <table class="w-full border-collapse text-sm">
-      <thead>
-        <tr class="bg-surface-muted/60">
+      <thead class="sticky top-0 z-10">
+        <tr class="bg-surface-muted">
           @for (col of columns(); track col.key) {
             <th
-              class="whitespace-nowrap px-4 py-3.5 text-xs font-semibold uppercase tracking-wider text-faint"
+              class="whitespace-nowrap border-b border-border-soft px-4 py-3 text-xs font-semibold uppercase tracking-wider text-faint"
               [class]="alignClass(col)"
             >
               {{ col.header }}
@@ -13,11 +13,13 @@
           }
         </tr>
       </thead>
-      <tbody>
+      <tbody [class.zebra]="zebra()">
         @for (row of rows(); track $index) {
-          <tr class="border-t border-border-soft/70 transition-colors hover:bg-brand-50/50 dark:hover:bg-brand-500/10">
+          <tr
+            class="border-t border-border-soft/70 transition-colors hover:bg-brand-50/60 dark:hover:bg-brand-500/10"
+          >
             @for (col of columns(); track col.key) {
-              <td class="whitespace-nowrap px-4 py-3.5 text-content" [class]="alignClass(col)">
+              <td class="whitespace-nowrap px-4 py-2.5 text-content" [class]="alignClass(col)">
                 @if (col.kind === 'badge') {
                   <app-status-badge [label]="display(row, col)" [tone]="tone(row, col)" />
                 } @else {
