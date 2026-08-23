@@ -4,25 +4,44 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /*
- * Design system v2 — modern, calm, typography-led.
- * Navy primary (#002559) with orange accent (#F24C1A) by default; every brand
+ * Design system v3 — modern, calm, typography-led.
+ *
+ * Blue primary (#0B3D91) with orange accent (#F24C1A) by default; every brand
  * and chart token is a CSS variable, so the Settings module can re-theme the
  * whole app at runtime by overriding them on <html>.
+ *
+ * The primary was #002559 — a navy so dark (L 0.17) and desaturated that the
+ * sidebar read as near-black and the brand vanished in dark mode. #0B3D91 is
+ * the same hue family at L 0.31 and S 0.86: recognisably the same blue, but
+ * actually blue. Every step below is buildScale('#0b3d91'), so these defaults
+ * match exactly what BrandingService derives at runtime.
+ *
+ * v3 changed three things and nothing else about the identity:
+ *   1. Form controls became a real primitive. `.field` / `.select` had been
+ *      redefined independently in three feature stylesheets, drifting on
+ *      radius, font-size and focus-ring opacity — four different inputs for
+ *      one intent. They now live here, once.
+ *   2. Borders split into `--border-soft` (cards, dividers) and
+ *      `--border-strong` (form controls, which need to read as interactive and
+ *      were nearly invisible at the card weight).
+ *   3. Status colours gained per-theme values. They were single dark-only hues,
+ *      so every badge and pill went muddy in dark mode.
  */
 @theme {
   --font-sans: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
 
   /* Brand scale (overridable at runtime) */
-  --color-brand-50: #eaf0f8;
-  --color-brand-100: #cbd9ee;
-  --color-brand-200: #93aeda;
-  --color-brand-300: #5a82c5;
-  --color-brand-400: #2d5aa8;
-  --color-brand-500: #013a7d;
-  --color-brand-600: #002559;
-  --color-brand-700: #001d46;
-  --color-brand-800: #001536;
-  --color-brand-900: #000d22;
+  --color-brand-50: #e7ecf4;
+  --color-brand-100: #ced8e9;
+  --color-brand-200: #a2b5d5;
+  --color-brand-300: #7994c3;
+  --color-brand-400: #4f73b0;
+  --color-brand-500: #28549e;
+  --color-brand-600: #0b3d91;
+  --color-brand-700: #093277;
+  --color-brand-800: #072963;
+  --color-brand-900: #061f49;
 
   /* Accent */
   --color-accent-400: #ff7a4d;
@@ -33,13 +52,13 @@
    * Categorical palette for charts — validated, not eyeballed.
    *
    * Every slot clears the same bar against BOTH the light (#ffffff) and dark
-   * (#101725) chart surface: inside the lightness band, over the chroma floor,
+   * (#121a28) chart surface: inside the lightness band, over the chroma floor,
    * >= 3:1 contrast, and adjacent slots separable under simulated colour-vision
    * deficiency. Slots 1 and 2 are the brand (BrandingService overwrites them
    * from the user's primary/accent via `chartHue`, which holds this same bar).
    *
-   * Two things this replaced, both real bugs: slot 1 was the raw brand navy
-   * (#013a7d), which vanished into the dark canvas, and slot 5 was #eab308 —
+   * Two things this replaced, both real bugs: slot 1 was the raw brand navy,
+   * which vanished into the dark canvas, and slot 5 was #eab308 —
    * yellow at 1.92:1 on white, i.e. unreadable.
    *
    * Known limit: the checks above cover ADJACENT slots, which is what an ordered
@@ -49,7 +68,7 @@
    * never rests on hue alone. Re-validate with the dataviz skill's
    * scripts/validate_palette.js before changing any of these.
    */
-  --color-chart-1: #2269ce;
+  --color-chart-1: #2262ce;
   --color-chart-2: #f24c1a;
   --color-chart-3: #16a34a;
   --color-chart-4: #a855f7;
@@ -62,51 +81,95 @@
   --color-canvas: var(--canvas);
   --color-surface: var(--surface);
   --color-surface-muted: var(--surface-muted);
+  --color-surface-raised: var(--surface-raised);
   --color-border-soft: var(--border-soft);
+  --color-border-strong: var(--border-strong);
   --color-content: var(--content);
   --color-muted: var(--content-muted);
   --color-faint: var(--content-faint);
 
-  /* Status */
-  --color-success: #15803d;
-  --color-warning: #b45309;
-  --color-danger: #b91c1c;
-  --color-info: #013a7d;
+  /* Status — per-theme, see :root / .dark */
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-info: var(--info);
 
-  --radius-xl: 1rem;
-  --radius-2xl: 1.25rem;
+  --radius-xl: 0.875rem;
+  --radius-2xl: 1.125rem;
 }
 
-/* Light theme (default) */
+/*
+ * Light theme (default).
+ *
+ * The greys were re-tuned off a single slightly-cool hue so surfaces step
+ * cleanly: canvas < surface-muted < surface. Previously canvas was blue enough
+ * (#f4f6fb) that white cards read as tinted rather than raised.
+ */
 :root {
-  --canvas: #f4f6fb;
+  --canvas: #f5f7fa;
   --surface: #ffffff;
-  --surface-muted: #f1f5f9;
-  --border-soft: #e8edf4;
-  --content: #0c1626;
-  --content-muted: #55627a;
-  --content-faint: #8a95a8;
+  --surface-muted: #f1f4f9;
+  --surface-raised: #ffffff;
+  --border-soft: #e4e9f0;
+  --border-strong: #d2dae5;
+  --content: #0d1522;
+  --content-muted: #57637a;
+  --content-faint: #8794a6;
 
-  --shadow-sm: 0 1px 2px rgba(15, 27, 45, 0.04), 0 1px 3px rgba(15, 27, 45, 0.06);
-  --shadow-md: 0 4px 12px rgba(15, 27, 45, 0.06), 0 2px 6px rgba(15, 27, 45, 0.05);
-  --shadow-lg: 0 12px 32px rgba(15, 27, 45, 0.1), 0 4px 12px rgba(15, 27, 45, 0.06);
+  --success: #157f45;
+  --warning: #a35a06;
+  --danger: #c02626;
+  --info: #1d5fbf;
+
+  --shadow-sm: 0 1px 2px rgba(15, 27, 45, 0.05), 0 1px 3px rgba(15, 27, 45, 0.05);
+  --shadow-md: 0 4px 12px rgba(15, 27, 45, 0.07), 0 2px 6px rgba(15, 27, 45, 0.04);
+  --shadow-lg: 0 12px 32px rgba(15, 27, 45, 0.1), 0 4px 12px rgba(15, 27, 45, 0.05);
+  --shadow-xl: 0 24px 56px rgba(15, 27, 45, 0.14), 0 8px 20px rgba(15, 27, 45, 0.06);
+
   color-scheme: light;
 }
 
-/* Dark theme */
+/*
+ * Dark theme. Surfaces are lifted a step (#121a28 vs the old #101725) and
+ * muted text brightened, because both were sitting under 4.5:1 on the canvas.
+ */
 .dark {
-  --canvas: #080c15;
-  --surface: #101725;
-  --surface-muted: #18212f;
-  --border-soft: #212c3f;
+  --canvas: #0a0f18;
+  --surface: #121a28;
+  --surface-muted: #1a2434;
+  --surface-raised: #172132;
+  --border-soft: #222e42;
+  --border-strong: #33415a;
   --content: #eef2f8;
-  --content-muted: #9aa7bd;
-  --content-faint: #67748c;
+  --content-muted: #a3b0c4;
+  --content-faint: #718099;
 
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.36);
+  --success: #34d399;
+  --warning: #fbbf24;
+  --danger: #f87171;
+  --info: #60a5fa;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.32);
+  --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.38);
   --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.5);
+  --shadow-xl: 0 28px 64px rgba(0, 0, 0, 0.6);
+
   color-scheme: dark;
+}
+
+/*
+ * One focus ring for the whole app. Every interactive primitive references
+ * this, so the ring never drifts between a filter select and a settings input
+ * the way it used to (14% / 16% / 18% of three different definitions).
+ */
+:root {
+  --ring-width: 3px;
+  --ring-color: color-mix(in srgb, var(--color-brand-500) 22%, transparent);
+  --ring: 0 0 0 var(--ring-width) var(--ring-color);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+}
+.dark {
+  --ring-color: color-mix(in srgb, var(--color-brand-300) 32%, transparent);
 }
 
 @layer base {
@@ -114,6 +177,8 @@
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
+    /* Inter's defaults are wide for UI at these sizes; tighten globally. */
+    letter-spacing: -0.011em;
   }
 
   body {
@@ -123,36 +188,69 @@
     background-image:
       radial-gradient(
         60rem 40rem at 100% -10%,
-        color-mix(in srgb, var(--color-brand-500) 8%, transparent),
+        color-mix(in srgb, var(--color-brand-500) 7%, transparent),
         transparent 60%
       ),
       radial-gradient(
         50rem 40rem at -10% 0%,
-        color-mix(in srgb, var(--color-accent-500) 5%, transparent),
+        color-mix(in srgb, var(--color-accent-500) 4%, transparent),
         transparent 55%
       );
     background-attachment: fixed;
+  }
+
+  /*
+   * Headings get tighter tracking than body text. Optical sizing: the larger
+   * the type, the more the default spacing looks loose.
+   */
+  h1 { letter-spacing: -0.028em; }
+  h2 { letter-spacing: -0.022em; }
+  h3, h4 { letter-spacing: -0.016em; }
+
+  /* Figures line up in columns only if they are tabular. */
+  .tabular-nums,
+  td,
+  th {
+    font-variant-numeric: tabular-nums;
   }
 
   ::selection {
     background: color-mix(in srgb, var(--color-brand-500) 22%, transparent);
   }
 
+  /*
+   * Keyboard focus, globally. Mouse users never see it (:focus-visible), so
+   * there is no reason for individual components to opt out.
+   */
+  :focus-visible {
+    outline: 2px solid var(--color-brand-400);
+    outline-offset: 2px;
+    border-radius: 0.35rem;
+  }
+
   * {
     scrollbar-width: thin;
-    scrollbar-color: var(--border-soft) transparent;
+    scrollbar-color: var(--border-strong) transparent;
   }
   *::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 9px;
+    height: 9px;
   }
   *::-webkit-scrollbar-thumb {
-    background: var(--border-soft);
+    background: var(--border-strong);
     border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background: var(--content-faint);
+    background-clip: content-box;
   }
 }
 
 @layer components {
+  /* ── Surfaces ──────────────────────────────────────────────────────────── */
+
   .card {
     background-color: var(--surface);
     border: 1px solid var(--border-soft);
@@ -164,15 +262,59 @@
     border-radius: var(--radius-2xl);
   }
 
-  /* Primary action button — brand gradient. */
-  .btn-primary {
+  /*
+   * Interactive card. A card that navigates should say so before it is
+   * clicked — border warms to the brand and the surface lifts.
+   */
+  .card-interactive {
+    transition:
+      transform 0.18s var(--ease-out),
+      box-shadow 0.18s ease,
+      border-color 0.18s ease;
+  }
+  .card-interactive:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+    border-color: color-mix(in srgb, var(--color-brand-400) 40%, var(--border-soft));
+  }
+  .card-interactive:active {
+    transform: translateY(0);
+    transition-duration: 0.08s;
+  }
+
+  /* Hairline divider that matches the card border in both themes. */
+  .divider {
+    height: 1px;
+    background: var(--border-soft);
+  }
+
+  /* ── Buttons ───────────────────────────────────────────────────────────── */
+
+  .btn-primary,
+  .btn-ghost,
+  .btn-danger {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 0.5rem;
-    border-radius: 0.7rem;
+    border-radius: 0.625rem;
     padding: 0.55rem 1rem;
     font-size: 0.875rem;
     font-weight: 600;
+    line-height: 1.25rem;
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+      transform 0.12s ease,
+      filter 0.15s ease,
+      background-color 0.15s ease,
+      color 0.15s ease,
+      border-color 0.15s ease,
+      box-shadow 0.15s ease;
+  }
+
+  /* Primary action — brand gradient. */
+  .btn-primary {
     color: #fff;
     background-image: linear-gradient(
       135deg,
@@ -180,45 +322,704 @@
       var(--color-brand-600)
     );
     box-shadow: var(--shadow-sm);
-    transition:
-      filter 0.15s ease,
-      transform 0.15s ease,
-      box-shadow 0.15s ease;
   }
-  .btn-primary:hover {
-    filter: brightness(1.08);
+  .btn-primary:hover:not(:disabled) {
+    filter: brightness(1.1);
     box-shadow: var(--shadow-md);
-  }
-  .btn-primary:active {
-    transform: translateY(1px);
-  }
-  .btn-primary:disabled {
-    opacity: 0.55;
-    filter: none;
-    box-shadow: none;
   }
 
   /* Secondary / ghost button. */
   .btn-ghost {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    border-radius: 0.7rem;
-    border: 1px solid var(--border-soft);
+    border: 1px solid var(--border-strong);
     background-color: var(--surface);
-    padding: 0.55rem 1rem;
-    font-size: 0.875rem;
     font-weight: 500;
     color: var(--content);
-    transition:
-      background-color 0.15s ease,
-      box-shadow 0.15s ease;
   }
-  .btn-ghost:hover {
+  .btn-ghost:hover:not(:disabled) {
     background-color: var(--surface-muted);
+    border-color: color-mix(in srgb, var(--color-brand-400) 35%, var(--border-strong));
     box-shadow: var(--shadow-sm);
   }
-  .btn-ghost:disabled {
-    opacity: 0.5;
+
+  /* Destructive action. */
+  .btn-danger {
+    border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent);
+    background-color: color-mix(in srgb, var(--danger) 10%, transparent);
+    color: var(--danger);
   }
+  .btn-danger:hover:not(:disabled) {
+    background-color: color-mix(in srgb, var(--danger) 16%, transparent);
+  }
+
+  .btn-primary:active:not(:disabled),
+  .btn-ghost:active:not(:disabled),
+  .btn-danger:active:not(:disabled) {
+    transform: scale(0.97);
+    transition-duration: 0.08s;
+  }
+
+  .btn-primary:disabled,
+  .btn-ghost:disabled,
+  .btn-danger:disabled {
+    opacity: 0.5;
+    filter: none;
+    box-shadow: none;
+    cursor: not-allowed;
+  }
+
+  .btn-sm {
+    padding: 0.375rem 0.7rem;
+    font-size: 0.8125rem;
+    border-radius: 0.5rem;
+  }
+
+  /* Square icon-only button, sized to match .btn-sm's height. */
+  .icon-btn {
+    display: grid;
+    place-items: center;
+    height: 2.25rem;
+    width: 2.25rem;
+    border-radius: 0.625rem;
+    color: var(--content-muted);
+    cursor: pointer;
+    transition:
+      background-color 0.15s ease,
+      color 0.15s ease,
+      transform 0.12s ease;
+  }
+  .icon-btn:hover {
+    background-color: var(--surface-muted);
+    color: var(--content);
+  }
+  .icon-btn:active {
+    transform: scale(0.92);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Forms
+   ───────────────────────────────────────────────────────────────────────────
+   ONE definition of a form control, used everywhere. This block replaces four
+   independent ones that had drifted apart (settings.css, ai-report.css and
+   sales-order-list.css each had their own, plus a raw-Tailwind search input),
+   which is why two inputs side by side never quite matched.
+
+   Two deliberate choices:
+   - Controls sit on `--border-strong`, not `--border-soft`. A card border wants
+     to disappear; an input border has to advertise that you can type in it.
+   - The focus ring is the shared `--ring` token, so it is identical on every
+     control and re-themes with the brand.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@layer components {
+  .field {
+    width: 100%;
+    border-radius: 0.625rem;
+    border: 1px solid var(--border-strong);
+    background-color: var(--surface);
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    color: var(--content);
+    outline: none;
+    transition:
+      border-color 0.15s ease,
+      box-shadow 0.15s ease,
+      background-color 0.15s ease;
+  }
+  .field::placeholder {
+    color: var(--content-faint);
+  }
+  .field:hover:not(:disabled):not(:focus) {
+    border-color: color-mix(in srgb, var(--color-brand-400) 45%, var(--border-strong));
+  }
+  .field:focus {
+    border-color: var(--color-brand-400);
+    box-shadow: var(--ring);
+  }
+  .field:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    background-color: var(--surface-muted);
+  }
+  /* Validation state — pair with aria-invalid so it is not colour-only. */
+  .field[aria-invalid='true'] {
+    border-color: var(--danger);
+  }
+  .field[aria-invalid='true']:focus {
+    box-shadow: 0 0 0 var(--ring-width) color-mix(in srgb, var(--danger) 22%, transparent);
+  }
+
+  .field-sm {
+    padding: 0.375rem 0.625rem;
+    font-size: 0.8125rem;
+    border-radius: 0.5rem;
+  }
+
+  /* Leading-icon variant: the wrapper positions the icon, this clears it. */
+  .field-search {
+    padding-left: 2.25rem;
+  }
+
+  /*
+   * Input wrapper for a leading (and optional trailing) icon. The icon is
+   * pointer-events:none so clicking it still focuses the input.
+   */
+  .field-wrap {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    width: 100%;
+  }
+  .field-icon {
+    pointer-events: none;
+    position: absolute;
+    left: 0.75rem;
+    display: inline-flex;
+    color: var(--content-faint);
+    transition: color 0.15s ease;
+  }
+  /* The icon tracks focus, so the whole control lights up as one thing. */
+  .field-wrap:focus-within .field-icon {
+    color: var(--color-brand-400);
+  }
+
+  .field-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--content-faint);
+  }
+
+  .field-hint {
+    font-size: 0.75rem;
+    color: var(--content-faint);
+  }
+  .field-error {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--danger);
+  }
+
+  /* ── Select ────────────────────────────────────────────────────────────── */
+
+  .select-wrap {
+    position: relative;
+    display: inline-flex;
+  }
+
+  .select {
+    appearance: none;
+    -webkit-appearance: none;
+    border-radius: 0.625rem;
+    border: 1px solid var(--border-strong);
+    background-color: var(--surface);
+    padding: 0.5rem 2.1rem 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    color: var(--content);
+    cursor: pointer;
+    outline: none;
+    text-overflow: ellipsis;
+    transition:
+      border-color 0.15s ease,
+      box-shadow 0.15s ease,
+      background-color 0.15s ease;
+  }
+  .select:hover:not(:focus) {
+    background-color: var(--surface-muted);
+    border-color: color-mix(in srgb, var(--color-brand-400) 45%, var(--border-strong));
+  }
+  .select:focus {
+    border-color: var(--color-brand-400);
+    box-shadow: var(--ring);
+  }
+  /* The native option list is OS-drawn; at least keep it on-theme. */
+  .select option {
+    background-color: var(--surface);
+    color: var(--content);
+  }
+
+  .select-chevron {
+    pointer-events: none;
+    position: absolute;
+    right: 0.65rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--content-faint);
+    transition:
+      transform 0.18s var(--ease-out),
+      color 0.15s ease;
+  }
+  .select-wrap:focus-within .select-chevron {
+    color: var(--color-brand-400);
+    transform: translateY(-50%) rotate(180deg);
+  }
+
+  /* ── Colour swatch (native picker, restyled) ───────────────────────────── */
+
+  .swatch {
+    height: 2.5rem;
+    width: 2.5rem;
+    cursor: pointer;
+    border-radius: 0.625rem;
+    border: 1px solid var(--border-strong);
+    background: transparent;
+    padding: 0;
+    transition:
+      transform 0.15s var(--ease-out),
+      box-shadow 0.15s ease;
+  }
+  .swatch:hover {
+    transform: scale(1.06);
+    box-shadow: var(--shadow-md);
+  }
+  .swatch::-webkit-color-swatch-wrapper {
+    padding: 3px;
+  }
+  .swatch::-webkit-color-swatch {
+    border: none;
+    border-radius: 0.45rem;
+  }
+  .swatch::-moz-color-swatch {
+    border: none;
+    border-radius: 0.45rem;
+  }
+
+  /* ── Segmented control ─────────────────────────────────────────────────── */
+
+  .segment {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.25rem;
+    border-radius: 0.75rem;
+    background-color: var(--surface-muted);
+    border: 1px solid var(--border-soft);
+  }
+  .seg {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    border-radius: 0.55rem;
+    padding: 0.4rem 0.85rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--content-muted);
+    cursor: pointer;
+    transition:
+      background-color 0.18s ease,
+      color 0.18s ease,
+      box-shadow 0.18s ease;
+  }
+  .seg:hover:not(.seg-active):not([aria-selected='true']) {
+    color: var(--content);
+  }
+  /* `aria-selected` is the correct state for a tablist; support both. */
+  .seg-active,
+  .seg[aria-selected='true'] {
+    background-color: var(--surface);
+    color: var(--content);
+    font-weight: 600;
+    box-shadow: var(--shadow-sm);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Tables
+   ───────────────────────────────────────────────────────────────────────────
+   A dense report grid is the app's primary artefact, so it gets real
+   affordances: a header that separates itself once you scroll under it, a row
+   hover that reads at a glance, and sort controls that show direction.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@layer components {
+  .tbl {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 0.875rem;
+  }
+
+  .tbl thead th {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background-color: var(--surface-muted);
+    border-bottom: 1px solid var(--border-soft);
+    padding: 0.7rem 1rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--content-faint);
+    white-space: nowrap;
+  }
+
+  /*
+   * Depth cue under the sticky header. `.is-scrolled` is set by the table
+   * component once the scroll container leaves the top, so the shadow appears
+   * only when there is actually content passing beneath it.
+   */
+  .tbl-scroll.is-scrolled thead th {
+    box-shadow: 0 6px 12px -8px rgba(15, 27, 45, 0.35);
+  }
+  .dark .tbl-scroll.is-scrolled thead th {
+    box-shadow: 0 6px 14px -8px rgba(0, 0, 0, 0.7);
+  }
+
+  .tbl tbody td {
+    padding: 0.625rem 1rem;
+    border-top: 1px solid color-mix(in srgb, var(--border-soft) 70%, transparent);
+    color: var(--content);
+    white-space: nowrap;
+  }
+
+  /*
+   * Row hover. The left edge picks up the brand as a 2px inset shadow rather
+   * than a border, because a border would shift every cell by a pixel.
+   */
+  .tbl tbody tr {
+    transition:
+      background-color 0.13s ease,
+      box-shadow 0.13s ease;
+  }
+  .tbl tbody tr:hover {
+    background-color: color-mix(in srgb, var(--color-brand-500) 6%, transparent);
+    box-shadow: inset 2px 0 0 0 var(--color-brand-400);
+  }
+  .dark .tbl tbody tr:hover {
+    background-color: color-mix(in srgb, var(--color-brand-300) 10%, transparent);
+  }
+
+  /*
+   * Zebra tinting is a background on the row, so hover has to out-specify it —
+   * hence :not(:hover).
+   */
+  .tbl.zebra tbody tr:nth-child(even):not(:hover) {
+    background-color: color-mix(in srgb, var(--surface-muted) 45%, transparent);
+  }
+
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Pills & badges
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@layer components {
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    border-radius: 9999px;
+    padding: 0.2rem 0.6rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    white-space: nowrap;
+    border: 1px solid transparent;
+  }
+  .pill-ok {
+    background: color-mix(in srgb, var(--success) 13%, transparent);
+    border-color: color-mix(in srgb, var(--success) 24%, transparent);
+    color: var(--success);
+  }
+  .pill-warn {
+    background: color-mix(in srgb, var(--warning) 14%, transparent);
+    border-color: color-mix(in srgb, var(--warning) 26%, transparent);
+    color: var(--warning);
+  }
+  .pill-danger {
+    background: color-mix(in srgb, var(--danger) 13%, transparent);
+    border-color: color-mix(in srgb, var(--danger) 24%, transparent);
+    color: var(--danger);
+  }
+  .pill-info {
+    background: color-mix(in srgb, var(--info) 13%, transparent);
+    border-color: color-mix(in srgb, var(--info) 24%, transparent);
+    color: var(--info);
+  }
+  .pill-neutral {
+    background: var(--surface-muted);
+    border-color: var(--border-soft);
+    color: var(--content-muted);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Motion
+   ───────────────────────────────────────────────────────────────────────────
+   The vocabulary is deliberately small and quick (120–700ms). Motion here
+   explains change; it never makes you wait for it. Entrances are transform +
+   opacity only, so they stay on the compositor and never trigger layout.
+
+   EVERYTHING is disabled under `prefers-reduced-motion` at the end of this
+   block. Anything added here must obey that — motion sickness is not a
+   preference to be overridden by a nicer easing curve.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes pop-in {
+  0% { opacity: 0; transform: scale(0.94); }
+  60% { opacity: 1; transform: scale(1.01); }
+  100% { opacity: 1; transform: none; }
+}
+
+@keyframes slide-in-left {
+  from { opacity: 0; transform: translateX(-12px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes bar-grow {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+@keyframes donut-in {
+  from { opacity: 0; transform: rotate(-14deg) scale(0.88); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes shimmer {
+  from { background-position: -140% 0; }
+  to { background-position: 140% 0; }
+}
+
+/* Focus-ring pulse for a control that has just received an error. */
+@keyframes ring-pulse {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--danger) 45%, transparent); }
+  100% { box-shadow: 0 0 0 8px transparent; }
+}
+
+/*
+  Page entrance. The routed component is the only element child of <main>
+  (router-outlet is an anchor, not a wrapper), and Angular destroys and recreates
+  it on navigation — so the animation replays per route with no JS at all.
+*/
+main > *:not(router-outlet) {
+  animation: rise-in 0.34s var(--ease-out) both;
+}
+
+/*
+  Staggered children. Applied to a grid or list so cards arrive in sequence
+  instead of all at once — the eye follows the order it should read them in.
+  Capped at 8: past that the last item feels late rather than choreographed.
+*/
+.stagger > * {
+  animation: rise-in 0.42s var(--ease-out) both;
+}
+.stagger > *:nth-child(1) { animation-delay: 0.03s; }
+.stagger > *:nth-child(2) { animation-delay: 0.07s; }
+.stagger > *:nth-child(3) { animation-delay: 0.11s; }
+.stagger > *:nth-child(4) { animation-delay: 0.15s; }
+.stagger > *:nth-child(5) { animation-delay: 0.19s; }
+.stagger > *:nth-child(6) { animation-delay: 0.23s; }
+.stagger > *:nth-child(7) { animation-delay: 0.27s; }
+.stagger > *:nth-child(n + 8) { animation-delay: 0.31s; }
+
+.animate-pop { animation: pop-in 0.4s var(--ease-out) both; }
+.animate-fade { animation: fade-in 0.3s ease-out both; }
+.animate-slide-left { animation: slide-in-left 0.3s var(--ease-out) both; }
+
+/*
+  Skeleton placeholder. Shaped like the content it stands in for, so the layout
+  does not jump when real data lands — which a centred spinner guarantees it
+  will, since the spinner occupies nothing like the space a table needs.
+*/
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  border-radius: 0.5rem;
+  background: var(--surface-muted);
+}
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--content-faint) 12%, transparent) 50%,
+    transparent 100%
+  );
+  background-size: 220% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+/* Interactive lift, shared by anything clickable that reads as a surface. */
+.lift {
+  transition:
+    transform 0.18s var(--ease-out),
+    box-shadow 0.18s ease,
+    border-color 0.18s ease;
+}
+.lift:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+.lift:active {
+  transform: translateY(0);
+  transition-duration: 0.08s;
+}
+
+/*
+  The opt-out. Everything above collapses to an instant state change — content
+  still appears, it simply does not travel to get there.
+*/
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Rendered Markdown from the assistant
+   ───────────────────────────────────────────────────────────────────────────
+   Styled with plain CSS rather than utility classes because the HTML is
+   produced by `renderMarkdown` at runtime — Tailwind cannot see those tags to
+   generate classes for them, and a typography plugin would be a dependency for
+   one panel. Sized to sit calmly beside the report: this is a chat, not an
+   article.
+
+   THIS MUST STAY GLOBAL. It lived in chat-panel.css, where Angular's emulated
+   encapsulation rewrote every rule to require the component's _ngcontent
+   attribute. Elements inserted via [innerHTML] never get that attribute, so
+   `.prose-chat p` compiled to `.prose-chat[_ngcontent-x] p[_ngcontent-x]` and
+   matched nothing: headings, lists, code, tables and links all fell back to
+   browser defaults. Moving a rule here back into a component silently breaks
+   it again — the build stays green and only the rendering changes.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.prose-chat {
+  font-size: 0.875rem;
+  line-height: 1.65;
+  color: var(--content);
+  overflow-wrap: anywhere;
+}
+.prose-chat > *:first-child {
+  margin-top: 0;
+}
+.prose-chat > *:last-child {
+  margin-bottom: 0;
+}
+.prose-chat p {
+  margin: 0 0 0.6rem;
+}
+.prose-chat h2,
+.prose-chat h3,
+.prose-chat h4,
+.prose-chat h5 {
+  margin: 0.9rem 0 0.4rem;
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: -0.012em;
+  color: var(--content);
+}
+.prose-chat h2 {
+  font-size: 0.98rem;
+}
+.prose-chat h3 {
+  font-size: 0.9rem;
+}
+.prose-chat h4,
+.prose-chat h5 {
+  font-size: 0.85rem;
+}
+.prose-chat ul,
+.prose-chat ol {
+  margin: 0 0 0.6rem;
+  padding-left: 1.15rem;
+}
+.prose-chat li {
+  margin-bottom: 0.2rem;
+}
+.prose-chat li::marker {
+  color: var(--color-brand-400);
+}
+.prose-chat strong {
+  font-weight: 600;
+  color: var(--content);
+}
+.prose-chat a {
+  color: var(--color-brand-500);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: color 0.15s ease;
+}
+.prose-chat a:hover {
+  color: var(--color-brand-400);
+}
+.prose-chat code {
+  font-family: var(--font-mono);
+  font-size: 0.8em;
+  background: var(--surface-muted);
+  border: 1px solid var(--border-soft);
+  border-radius: 0.3rem;
+  padding: 0.05rem 0.28rem;
+}
+.prose-chat pre {
+  margin: 0 0 0.6rem;
+  padding: 0.7rem 0.8rem;
+  background: var(--surface-muted);
+  border: 1px solid var(--border-soft);
+  border-radius: 0.6rem;
+  overflow-x: auto;
+}
+.prose-chat pre code {
+  background: none;
+  border: 0;
+  padding: 0;
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+.prose-chat blockquote {
+  margin: 0 0 0.6rem;
+  padding: 0.15rem 0 0.15rem 0.7rem;
+  border-left: 2px solid var(--color-brand-400);
+  color: var(--content-muted);
+}
+.prose-chat hr {
+  margin: 0.9rem 0;
+  border: 0;
+  border-top: 1px solid var(--border-soft);
+}
+/* Tables can exceed the panel; scroll them rather than breaking the layout. */
+.prose-chat table {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  margin: 0 0 0.6rem;
+  font-size: 0.78rem;
+}
+.prose-chat th {
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.9em;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--content-faint);
+  border-bottom: 1px solid var(--border-soft);
+  padding: 0.35rem 0.5rem;
+  white-space: nowrap;
+}
+.prose-chat td {
+  border-bottom: 1px solid color-mix(in srgb, var(--border-soft) 70%, transparent);
+  padding: 0.35rem 0.5rem;
+}
+.prose-chat tbody tr:last-child td {
+  border-bottom: 0;
 }

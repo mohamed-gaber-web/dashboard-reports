@@ -1,3 +1,21 @@
 :host {
   display: block;
 }
+
+/*
+ * The icon sat on a flat muted circle, which read as a disabled control. Two
+ * concentric rings give it presence without suggesting it is interactive.
+ */
+.empty-icon {
+  display: grid;
+  place-items: center;
+  height: 3.5rem;
+  width: 3.5rem;
+  border-radius: 9999px;
+  color: var(--content-faint);
+  background: var(--surface-muted);
+  box-shadow:
+    0 0 0 1px var(--border-soft),
+    0 0 0 8px color-mix(in srgb, var(--surface-muted) 45%, transparent);
+  animation: pop-in 0.45s var(--ease-out) both;
+}

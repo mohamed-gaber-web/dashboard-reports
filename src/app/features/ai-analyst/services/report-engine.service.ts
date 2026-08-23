@@ -14,10 +14,14 @@ import { FieldMeta, ValueFormat } from '../models/field-meta.model';
 import {
   ChartResult,
   ChartSpec,
+  DEFAULT_DESIGN,
   KpiResult,
   KpiSpec,
+  ReportPalette,
   ReportResult,
   ReportSpec,
+  ResolvedDesign,
+  reportColor,
 } from '../models/report-spec.model';
 
 type Row = Record<string, unknown>;
@@ -57,17 +61,53 @@ export class ReportEngineService {
     const { source, cube, total } = ctx;
     const fieldMap = new Map(source.fields.map((f) => [f.key, f]));
     const currency = this.currencyOf(ctx);
+    const design = this.resolveDesign(spec);
 
     return {
       title: spec.title,
       description: spec.description,
+      design,
       rowCount: total,
       kpis: (spec.kpis ?? []).map((k) => this.computeKpi(k, cube, total, currency)),
-      charts: (spec.charts ?? []).map((c) => this.computeChart(c, cube)),
+      charts: (spec.charts ?? []).map((c) => this.paint(this.computeChart(c, cube), design.palette)),
       table: spec.table
         ? this.buildTable(spec.table.columns, ctx.tableRows, total, fieldMap, currency)
         : undefined,
       omitted: ctx.omitted?.length ? ctx.omitted : undefined,
+    };
+  }
+
+  // ── Design ───────────────────────────────────────────────────────────────
+
+  /**
+   * Fill in the design defaults, and drop anything outside the vocabulary.
+   *
+   * The model is asked for closed enums, but a spec is model output: an
+   * unrecognised value falls back to the default rather than reaching a
+   * template as an unknown class name. Same principle as the filter compiler —
+   * validate at the seam where model output becomes app behaviour.
+   */
+  private resolveDesign(spec: ReportSpec): ResolvedDesign {
+    const d = spec.design ?? {};
+    return {
+      density: d.density === 'compact' ? 'compact' : DEFAULT_DESIGN.density,
+      palette:
+        d.palette === 'brand' || d.palette === 'accent' ? d.palette : DEFAULT_DESIGN.palette,
+      chartLayout:
+        d.chartLayout === 'stacked' || d.chartLayout === 'grid'
+          ? d.chartLayout
+          : DEFAULT_DESIGN.chartLayout,
+    };
+  }
+
+  /** Applies the chosen palette to a computed chart's data. */
+  private paint(chart: ChartResult, palette: ReportPalette): ChartResult {
+    // Categorical is the charts' own default; leaving `color` unset keeps the
+    // shared palette as the single place that decision is made.
+    if (palette === 'categorical') return chart;
+    return {
+      ...chart,
+      data: chart.data.map((d, i) => ({ ...d, color: reportColor(palette, i) })),
     };
   }
 

@@ -1,0 +1,60 @@
+<!--
+  Silhouettes, not spinners. Each variant mirrors the real content's geometry so
+  the page does not reflow when data arrives.
+-->
+@switch (variant()) {
+  @case ('kpis') {
+    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-hidden="true">
+      @for (i of range(4); track i) {
+        <div class="skeleton h-28 rounded-2xl"></div>
+      }
+    </div>
+  }
+
+  @case ('chart') {
+    <div class="flex flex-col gap-3" aria-hidden="true">
+      <div class="skeleton h-4 w-40"></div>
+      <div class="flex flex-col gap-3 pt-2">
+        @for (i of range(6); track i) {
+          <div class="flex items-center gap-3">
+            <div class="skeleton h-3 w-24 shrink-0"></div>
+            <div class="skeleton h-2 flex-1 rounded-full" [style.maxWidth.%]="90 - i * 12"></div>
+          </div>
+        }
+      </div>
+    </div>
+  }
+
+  @case ('report') {
+    <div class="flex flex-col gap-6" aria-hidden="true">
+      <div class="flex flex-col gap-2">
+        <div class="skeleton h-6 w-64"></div>
+        <div class="skeleton h-3.5 w-40"></div>
+      </div>
+      <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        @for (i of range(4); track i) {
+          <div class="skeleton h-24 rounded-2xl"></div>
+        }
+      </div>
+      <div class="skeleton h-56 rounded-2xl"></div>
+    </div>
+  }
+
+  @default {
+    <div class="flex flex-col gap-2.5" aria-hidden="true">
+      <!-- Header row, heavier than the body rows it labels. -->
+      <div class="flex gap-3 pb-1">
+        @for (c of range(5); track c) {
+          <div class="skeleton h-3 flex-1 opacity-70"></div>
+        }
+      </div>
+      @for (r of range(rows()); track r) {
+        <div class="flex gap-3">
+          @for (c of range(5); track c) {
+            <div class="skeleton h-4 flex-1"></div>
+          }
+        </div>
+      }
+    </div>
+  }
+}

@@ -1,3 +1,42 @@
 :host {
   display: block;
 }
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-accent-500);
+}
+
+/* The dot breathes once on entry, then rests — it marks the page, not a status. */
+.eyebrow-dot {
+  height: 0.3rem;
+  width: 0.3rem;
+  border-radius: 9999px;
+  background: currentColor;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent-500) 18%, transparent);
+}
+
+/*
+ * The page title is the largest type in the app, so it takes the tightest
+ * tracking. `text-balance` stops a two-word orphan on the second line.
+ */
+.page-title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.032em;
+  color: var(--content);
+  text-wrap: balance;
+}
+
+@media (min-width: 640px) {
+  .page-title {
+    font-size: 1.9rem;
+  }
+}

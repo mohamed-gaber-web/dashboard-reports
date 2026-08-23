@@ -1,7 +1,7 @@
 import { Cube, GroupTotal } from '../../../core/aggregation/aggregate-plan.model';
 import { AnalystSource } from '../models/analyst-source.model';
 import { FieldMeta } from '../models/field-meta.model';
-import { ReportSpec } from '../models/report-spec.model';
+import { DEFAULT_DESIGN, ReportSpec, reportColor } from '../models/report-spec.model';
 import { ComputeContext, ReportEngineService, TABLE_DISPLAY_LIMIT } from './report-engine.service';
 
 /**
@@ -194,6 +194,64 @@ describe('ReportEngineService', () => {
         { label: 'A', value: 50 },
         { label: 'B', value: 10 },
       ]);
+    });
+  });
+
+  describe('design', () => {
+    const bar = (): ReportSpec['charts'] => [
+      { type: 'bar', title: 'By site', groupBy: 'Site', agg: 'count' },
+    ];
+    const sites = () => cube({ dims: { Site: { A: group(3), B: group(1) } } });
+
+    it('fills in the defaults when the spec has no design block', () => {
+      const result = engine.compute({ title: 'T', kpis: [], charts: [] }, ctx({}));
+      expect(result.design).toEqual(DEFAULT_DESIGN);
+    });
+
+    it('carries a design the model asked for', () => {
+      const spec: ReportSpec = {
+        title: 'T',
+        kpis: [],
+        charts: [],
+        design: { density: 'compact', chartLayout: 'stacked' },
+      };
+      const result = engine.compute(spec, ctx({}));
+      expect(result.design.density).toBe('compact');
+      expect(result.design.chartLayout).toBe('stacked');
+      // Unspecified members still resolve, so the renderer never sees undefined.
+      expect(result.design.palette).toBe('categorical');
+    });
+
+    it('falls back to the default for a value outside the vocabulary', () => {
+      // A spec is model output: an invented enum member must not reach a
+      // template as an unknown class name.
+      const spec = {
+        title: 'T',
+        kpis: [],
+        charts: [],
+        design: { density: 'airy', palette: 'neon' },
+      } as unknown as ReportSpec;
+      expect(engine.compute(spec, ctx({})).design).toEqual(DEFAULT_DESIGN);
+    });
+
+    it('leaves chart colours unset under the categorical palette', () => {
+      const spec: ReportSpec = { title: 'T', kpis: [], charts: bar() };
+      const data = engine.compute(spec, ctx({ cube: sites() })).charts[0].data;
+      expect(data.every((d) => d.color === undefined)).toBe(true);
+    });
+
+    it('paints a single-hue ramp onto the data when one is asked for', () => {
+      const spec: ReportSpec = {
+        title: 'T',
+        kpis: [],
+        charts: bar(),
+        design: { palette: 'brand' },
+      };
+      const data = engine.compute(spec, ctx({ cube: sites() })).charts[0].data;
+      expect(data[0].color).toBe(reportColor('brand', 0));
+      expect(data[1].color).toBe(reportColor('brand', 1));
+      // Different steps of one hue — the ramp is ordered, not categorical.
+      expect(data[0].color).not.toBe(data[1].color);
     });
   });
 

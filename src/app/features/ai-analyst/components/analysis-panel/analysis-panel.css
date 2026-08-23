@@ -1,0 +1,151 @@
+:host {
+  display: block;
+}
+
+/* The padding `.card` deliberately does not provide. */
+.analysis {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.15rem 1.25rem 1.25rem;
+}
+
+.analysis-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+}
+
+.analysis-mark {
+  display: grid;
+  place-items: center;
+  height: 1.75rem;
+  width: 1.75rem;
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+  border-radius: 0.55rem;
+  color: #fff;
+  background: linear-gradient(135deg, var(--color-brand-500), var(--color-accent-500));
+}
+
+/*
+ * One step down from `text-lg`. It sits above a report whose own title is 1rem;
+ * a bigger headline here made the narrative outrank the numbers it describes.
+ */
+.analysis-headline {
+  font-size: 0.9375rem;
+  font-weight: 650;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+  color: var(--content);
+  text-wrap: balance;
+}
+
+.analysis-kicker {
+  margin-top: 0.1rem;
+  font-size: 0.6875rem;
+  color: var(--content-faint);
+}
+
+.analysis-summary {
+  font-size: 0.8125rem;
+  line-height: 1.65;
+  color: var(--content-muted);
+  text-wrap: pretty;
+}
+
+.analysis-label {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--content-faint);
+}
+
+/* Two columns once the sheet is wide enough to keep either from going narrow. */
+.analysis-cols {
+  display: grid;
+  gap: 1rem 1.5rem;
+}
+@container (min-width: 44rem) {
+  .analysis-cols {
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+  }
+}
+
+/*
+  Numbered findings. The counter is drawn as a badge in the padding reserved by
+  the list item, so a wrapping title flows under the heading rather than around
+  a floated number.
+*/
+.findings {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  list-style: none;
+  counter-reset: finding;
+  padding: 0;
+  margin: 0;
+}
+.findings > li {
+  counter-increment: finding;
+  position: relative;
+  border-radius: 0.7rem;
+  border-left: 3px solid var(--color-brand-500);
+  background: var(--surface-muted);
+  padding: 0.6rem 0.75rem 0.65rem 2.35rem;
+}
+.findings .marker {
+  position: absolute;
+  left: 0.7rem;
+  top: 0.68rem;
+  display: grid;
+  place-items: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 9999px;
+  background: var(--color-brand-600);
+  color: #fff;
+  font-size: 0.625rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.finding-title {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--content);
+}
+
+.finding-detail {
+  margin-top: 0.15rem;
+  font-size: 0.75rem;
+  line-height: 1.55;
+  color: var(--content-muted);
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.actions > li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  color: var(--content);
+}
+
+.action-tick {
+  display: inline-flex;
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+  color: var(--success);
+}

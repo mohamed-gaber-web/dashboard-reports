@@ -2,3 +2,39 @@
   display: block;
   height: 100%;
 }
+
+/*
+ * A chart card is not clickable, so it does not lift. It warms its border on
+ * hover instead — enough to signal "this panel is the thing you're pointing
+ * at" when several sit side by side, without implying a navigation.
+ */
+.chart-card-framed {
+  gap: 1.25rem;
+  background-color: var(--surface);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-2xl);
+  box-shadow: var(--shadow-sm);
+  padding: 1.25rem;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+.chart-card-framed:hover {
+  border-color: color-mix(in srgb, var(--color-brand-400) 30%, var(--border-soft));
+  box-shadow: var(--shadow-md);
+}
+
+@media (min-width: 640px) {
+  .chart-card-framed {
+    padding: 1.5rem;
+  }
+}
+
+/*
+ * Plain: a section, not a surface. Its own hairline separates it from the
+ * chart beside it without drawing a box, so a sheet of three charts reads as
+ * one report rather than three panels that happen to be adjacent.
+ */
+.chart-card-plain {
+  gap: 0.9rem;
+}

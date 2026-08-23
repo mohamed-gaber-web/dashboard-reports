@@ -1,3 +1,28 @@
 :host {
   display: block;
 }
+
+/*
+ * Mobile drawer. It used to appear instantly — scrim and panel both just
+ * existed, which reads as a glitch rather than a panel sliding in.
+ */
+.drawer-scrim {
+  position: absolute;
+  inset: 0;
+  background: rgba(4, 8, 16, 0.55);
+  backdrop-filter: blur(2px);
+  animation: fade-in 0.2s ease-out both;
+}
+
+.drawer-panel {
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  box-shadow: var(--shadow-xl);
+  animation: drawer-in 0.28s var(--ease-out) both;
+}
+
+@keyframes drawer-in {
+  from { transform: translateX(-100%); }
+  to { transform: none; }
+}

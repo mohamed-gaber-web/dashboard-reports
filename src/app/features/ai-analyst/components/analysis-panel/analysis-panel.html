@@ -1,0 +1,65 @@
+<!--
+  `.card` carries a border, a radius and a shadow but NO padding — that is
+  deliberate, so a card can hold a table or a toolbar that must run to its own
+  edge. This panel holds prose, and it had no padding of its own: every line of
+  the analysis ran flush into the border, which is most of why the generated
+  report read as unpadded and shouty.
+
+  It is padded now, and one step quieter: this is the caption on the report, so
+  it opens at the size of a paragraph rather than of a page title.
+-->
+<section class="analysis card card-lg @container">
+  <header class="analysis-head">
+    <span class="analysis-mark" aria-hidden="true">
+      <app-icon [path]="icons.sparkle" [size]="14" />
+    </span>
+    <div class="min-w-0">
+      <h2 class="analysis-headline">{{ analysis().headline }}</h2>
+      <p class="analysis-kicker">
+        Written analysis · every figure below is computed from D365, not by AI
+      </p>
+    </div>
+  </header>
+
+  <p class="analysis-summary">{{ analysis().summary }}</p>
+
+  <!--
+    Findings and actions side by side on a wide sheet. Stacked, the prose ran
+    for a screen and a half before the first chart appeared; the charts are the
+    report, and they should not be below the fold on a desktop.
+  -->
+  @if (analysis().findings.length || analysis().recommendations?.length) {
+    <div class="analysis-cols">
+      @if (analysis().findings.length) {
+        <div class="flex flex-col gap-2">
+          <h3 class="analysis-label">Key findings</h3>
+          <ol class="findings">
+            @for (f of analysis().findings; track $index) {
+              <li>
+                <span class="marker" aria-hidden="true">{{ $index + 1 }}</span>
+                <h4 class="finding-title">{{ f.title }}</h4>
+                <p class="finding-detail">{{ f.detail }}</p>
+              </li>
+            }
+          </ol>
+        </div>
+      }
+
+      @if (analysis().recommendations?.length) {
+        <div class="flex flex-col gap-2">
+          <h3 class="analysis-label">Recommended actions</h3>
+          <ul class="actions">
+            @for (r of analysis().recommendations ?? []; track $index) {
+              <li>
+                <span class="action-tick" aria-hidden="true">
+                  <app-icon [path]="icons.check" [size]="14" />
+                </span>
+                {{ r }}
+              </li>
+            }
+          </ul>
+        </div>
+      }
+    </div>
+  }
+</section>

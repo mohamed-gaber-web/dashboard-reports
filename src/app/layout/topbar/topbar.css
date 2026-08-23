@@ -1,20 +1,133 @@
 :host {
   display: block;
+  position: sticky;
+  top: 0;
+  z-index: 30;
 }
 
-.icon-btn {
-  display: grid;
-  place-items: center;
-  height: 2.25rem;
-  width: 2.25rem;
-  border-radius: 0.6rem;
-  color: rgba(255, 255, 255, 0.85);
+/*
+ * Light chrome. The sidebar carries the navy brand; repeating it here made two
+ * heavy slabs meet at the corner with two different gradients (vertical
+ * brand-700→800 against horizontal brand-700→600), and it boxed the content in.
+ *
+ * Translucent + blurred so content scrolling underneath stays faintly visible —
+ * the bar reads as a layer over the page rather than a lid on it.
+ */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  height: 3.75rem;
+  padding: 0 1rem;
+  background-color: color-mix(in srgb, var(--surface) 82%, transparent);
+  backdrop-filter: blur(12px) saturate(1.4);
+  -webkit-backdrop-filter: blur(12px) saturate(1.4);
+  border-bottom: 1px solid var(--border-soft);
+}
+
+@supports not (backdrop-filter: blur(1px)) {
+  .topbar {
+    background-color: var(--surface);
+  }
+}
+
+@media (min-width: 640px) {
+  .topbar {
+    padding: 0 1.5rem;
+  }
+}
+
+/* ── Breadcrumb ─────────────────────────────────────────────────────────── */
+
+.crumbs {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.crumb-section {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--content-faint);
+  white-space: nowrap;
+}
+
+/* Hidden on narrow screens: the current page matters more than its parent. */
+@media (max-width: 480px) {
+  .crumb-section,
+  .crumb-sep {
+    display: none;
+  }
+}
+
+.crumb-sep {
+  display: inline-flex;
+  color: var(--content-faint);
+  opacity: 0.55;
+}
+
+.crumb-current {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: -0.014em;
+  color: var(--content);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  /* Replays on navigation because the text node changes with the signal. */
+  animation: fade-in 0.25s ease-out both;
+}
+
+/* ── Connection status ──────────────────────────────────────────────────── */
+
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  border-radius: 9999px;
+  border: 1px solid var(--border-soft);
+  background-color: var(--surface-muted);
+  padding: 0.3rem 0.7rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--content-muted);
+  white-space: nowrap;
   transition:
-    background-color 0.15s ease,
-    color 0.15s ease;
+    border-color 0.3s ease,
+    color 0.3s ease;
+}
+.status-chip-live {
+  border-color: color-mix(in srgb, var(--success) 26%, transparent);
+  color: var(--success);
 }
 
-.icon-btn:hover {
-  background-color: rgba(255, 255, 255, 0.14);
-  color: #fff;
+.status-dot {
+  height: 0.5rem;
+  width: 0.5rem;
+  border-radius: 9999px;
+  background-color: var(--warning);
+  /* Pulses only while connecting — motion here means "still working". */
+  animation: dot-pulse 1.4s ease-in-out infinite;
+}
+.status-dot-live {
+  background-color: var(--success);
+  animation: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 20%, transparent);
+}
+
+@keyframes dot-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.45; transform: scale(0.82); }
+}
+
+/* The sun/moon swap is a 180° turn — the toggle shows it flipped something. */
+.theme-btn app-icon {
+  display: inline-flex;
+  animation: theme-spin 0.4s var(--ease-out);
+}
+
+@keyframes theme-spin {
+  from { transform: rotate(-90deg) scale(0.7); opacity: 0; }
+  to { transform: none; opacity: 1; }
 }

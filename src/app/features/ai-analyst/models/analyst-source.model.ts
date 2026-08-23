@@ -17,6 +17,14 @@ import { FieldMeta } from './field-meta.model';
 export interface AnalystSource {
   id: string;
   label: string;
+
+  /**
+   * One line saying what the dataset actually holds. Shown under the label in
+   * the source picker — with a handful of modules a label alone is enough, but
+   * the list is expected to grow and "Transaction" tells you nothing on its own.
+   */
+  description?: string;
+
   fields: FieldMeta[];
   suggestions: string[];
 

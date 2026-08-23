@@ -1,81 +1,216 @@
 /**
- * POST /api/chat — the AI Analyst backend (OpenRouter / free LLMs).
+ * POST /api/chat — the AI Analyst backend (Anthropic / Claude).
  *
- * Holds the OpenRouter API key server-side (never shipped to the browser) and
- * streams the model's response back as Server-Sent Events. The model narrates in
- * prose and, when a report is wanted, emits a single `<report>{…}</report>` block
- * — which we extract from the stream and parse into a Report Spec the Angular app
- * renders and computes locally against real data.
+ * Holds the Anthropic API key server-side (never shipped to the browser) and
+ * streams Claude's response back as Server-Sent Events. Claude narrates in prose
+ * and, when a report is wanted, calls the `emit_report` tool — whose input IS the
+ * Report Spec the Angular app renders and computes locally against real data.
  *
- * A tag block (not tool/function calling) is used deliberately: free OpenRouter
- * models vary in tool support, but every model can emit text, so this works
- * everywhere.
+ * Generative pattern, unchanged: THE MODEL DESIGNS, THE APP COMPUTES. Claude never
+ * returns numbers — only the report's shape. Every figure the user sees is computed
+ * by ReportEngineService against the real dataset, so nothing can be hallucinated.
+ *
+ * Why a tool instead of the old `<report>{…}</report>` text block: the tag block
+ * existed because free OpenRouter models varied in tool support. Claude has
+ * first-class tool use, and `tool_use.input` is always well-formed JSON built by
+ * the API — no tag scanning, no brace matching, no code-fence stripping. The SSE
+ * contract to the browser is byte-for-byte the same, so the Angular client is
+ * unchanged.
+ *
+ * The tool is deliberately NOT `strict: true`: ReportSpec has many optional fields
+ * (description, filters, table, valueField, topN…) and strict mode requires every
+ * property to be listed as required. SpecCompilerService already validates each
+ * clause against the real schema and surfaces anything it refuses via `omitted`,
+ * so a permissive schema plus that compiler is both safer and more honest than a
+ * rigid schema that would force the model to emit empty placeholders.
  *
  * Written against raw Node req/res so it runs unchanged both as a Vercel
  * serverless function and under the local dev server (dev-api/server.js).
  *
- * Env: OPENROUTER_API_KEY (required), OPENROUTER_MODEL (optional).
+ * Env: ANTHROPIC_API_KEY (required).
+ *      ANTHROPIC_MODEL  (optional, default claude-opus-5)
+ *      ANTHROPIC_EFFORT (optional, default medium — see note below)
  */
 
-const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
+const Anthropic = require('@anthropic-ai/sdk');
 
-// Static fallback list if live discovery fails.
-const FREE_MODELS = [
-  'meta-llama/llama-3.3-70b-instruct:free',
-  'qwen/qwen-2.5-72b-instruct:free',
-  'mistralai/mistral-small-3.1-24b-instruct:free',
-  'google/gemini-2.0-flash-exp:free',
-];
+const DEFAULT_MODEL = 'claude-opus-5';
 
-// Prefer these capable families when ordering the live free-model list.
-const PREFERRED = ['llama-3.3', 'qwen-2.5', 'qwen3', 'deepseek', 'mistral', 'gemini-2', 'llama-3'];
+// Effort trades reasoning depth against latency. This is an interactive chat, so
+// `medium` is the default rather than the API's `high` — report design is a
+// modest reasoning task and a chat that pauses for many seconds feels broken.
+// Raise to high/xhigh via env if report quality matters more than responsiveness.
+const DEFAULT_EFFORT = 'medium';
 
-// Only auth/billing failures abort; anything else (404 unavailable, 429 rate-limit,
-// 5xx) just skips to the next candidate model.
-const FATAL = new Set([401, 402, 403]);
+/**
+ * The Report Spec, as a tool schema. MUST stay in sync with `ReportSpec` in
+ * features/ai-analyst/models/report-spec.model.ts — that interface is the
+ * contract SpecCompilerService compiles against.
+ */
+const REPORT_TOOL = {
+  name: 'emit_report',
+  description:
+    'Render a dashboard report for the user. Call this whenever the user wants to see, ' +
+    'chart, break down, compare, or build a report or dashboard. Describe only the SHAPE ' +
+    'of the report — field names and aggregations. Never include computed numbers: the ' +
+    'app calculates every figure itself against the real dataset. Call at most once per ' +
+    'reply, and not at all when the user only asks a question you can answer in prose.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      title: { type: 'string', description: 'Report title.' },
+      description: { type: 'string', description: 'Optional one-line subtitle.' },
+      filters: {
+        type: 'array',
+        description: 'Optional. Rows to include. Field names must come from the SCHEMA.',
+        items: {
+          type: 'object',
+          properties: {
+            field: { type: 'string' },
+            op: { type: 'string', enum: ['eq', 'neq', 'gt', 'lt', 'gte', 'lte', 'contains'] },
+            value: { type: ['string', 'number'] },
+          },
+          required: ['field', 'op', 'value'],
+        },
+      },
+      kpis: {
+        type: 'array',
+        description: 'Headline numbers. Prefer count — it is always exact and free.',
+        items: {
+          type: 'object',
+          properties: {
+            label: { type: 'string' },
+            agg: { type: 'string', enum: ['count', 'sum', 'avg', 'distinctCount'] },
+            field: { type: 'string', description: 'Omit when agg is "count".' },
+            format: { type: 'string', enum: ['integer', 'quantity', 'currency'] },
+          },
+          required: ['label', 'agg'],
+        },
+      },
+      charts: {
+        type: 'array',
+        description: 'Charts to draw. Empty array when the slice is too large to total.',
+        items: {
+          type: 'object',
+          properties: {
+            type: { type: 'string', enum: ['bar', 'donut'] },
+            title: { type: 'string' },
+            groupBy: { type: 'string' },
+            agg: { type: 'string', enum: ['count', 'sum', 'avg'] },
+            valueField: { type: 'string', description: 'Omit when agg is "count".' },
+            topN: { type: 'number' },
+          },
+          required: ['type', 'title', 'groupBy', 'agg'],
+        },
+      },
+      table: {
+        type: 'object',
+        description: 'Optional detail table.',
+        properties: {
+          columns: { type: 'array', items: { type: 'string' } },
+        },
+        required: ['columns'],
+      },
+      design: {
+        type: 'object',
+        description:
+          "Optional LOOK of the report, as opposed to its content. Set it when the user asks " +
+          "for a visual change — 'more compact', 'bigger charts', 'one colour', 'less busy'. " +
+          'Omit it otherwise and the app uses its defaults. These are the only visual controls ' +
+          'there are: never describe styling in prose as though you had applied it, and never ' +
+          'emit CSS, colours or sizes of your own.',
+        properties: {
+          density: {
+            type: 'string',
+            enum: ['comfortable', 'compact'],
+            description: 'compact = less padding and smaller figures, so more fits on screen.',
+          },
+          palette: {
+            type: 'string',
+            enum: ['categorical', 'brand', 'accent'],
+            description:
+              'categorical = a different hue per category (default). brand/accent = one hue ' +
+              'stepped light to dark; use when the user asks for a single colour or a calmer look.',
+          },
+          chartLayout: {
+            type: 'string',
+            enum: ['auto', 'stacked', 'grid'],
+            description:
+              'auto fits the chart count to the width. stacked = one chart per row (bigger). ' +
+              'grid = pack more per row (smaller).',
+          },
+        },
+      },
+    },
+    required: ['title', 'kpis', 'charts'],
+  },
+};
 
-const MAX_ATTEMPTS = 8;
+/**
+ * The written analysis. Prose only — no figures the app has not computed.
+ *
+ * This is the half of a report a spec cannot express: what the numbers mean.
+ * It is rendered above the report on screen and forms the opening pages of an
+ * exported document.
+ */
+const ANALYSIS_TOOL = {
+  name: 'write_analysis',
+  description:
+    'Write a narrative analysis of the data — what it means, not what it totals. Call this ' +
+    'when the user asks for analysis, insight, a summary, or a document/report to share. ' +
+    'Refer to figures qualitatively ("most", "the largest share", "roughly a third") or quote ' +
+    'values that appear verbatim in the DATA SUMMARY. Never compute your own numbers.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      headline: { type: 'string', description: 'One-line takeaway. The document title.' },
+      summary: {
+        type: 'string',
+        description: 'Two to four sentences of executive summary. Plain prose, no markdown.',
+      },
+      findings: {
+        type: 'array',
+        description: 'The three to six things worth knowing, most important first.',
+        items: {
+          type: 'object',
+          properties: {
+            title: { type: 'string', description: 'Short label, a few words.' },
+            detail: { type: 'string', description: 'One or two sentences of explanation.' },
+          },
+          required: ['title', 'detail'],
+        },
+      },
+      recommendations: {
+        type: 'array',
+        description: 'Optional. Concrete suggested actions.',
+        items: { type: 'string' },
+      },
+    },
+    required: ['headline', 'summary', 'findings'],
+  },
+};
 
-/** Discover models that are currently free on OpenRouter (valid slugs, ordered). */
-async function discoverFreeModels(apiKey) {
-  try {
-    const r = await fetch('https://openrouter.ai/api/v1/models', {
-      headers: { Authorization: `Bearer ${apiKey}` },
-    });
-    if (!r.ok) return FREE_MODELS;
-    const { data } = await r.json();
-    const free = (data || [])
-      .filter((m) => m?.pricing && Number(m.pricing.prompt) === 0 && Number(m.pricing.completion) === 0)
-      .map((m) => m.id);
-    if (!free.length) return FREE_MODELS;
-    // Preferred families first, then the rest.
-    const score = (id) => {
-      const i = PREFERRED.findIndex((p) => id.includes(p));
-      return i === -1 ? PREFERRED.length : i;
-    };
-    return [...free].sort((a, b) => score(a) - score(b));
-  } catch {
-    return FREE_MODELS;
-  }
-}
-
-const REPORT_SHAPE = `{
-  "title": string,
-  "description": string,                       // optional, one line
-  "filters": [                                 // optional
-    { "field": string, "op": "eq|neq|gt|lt|gte|lte|contains", "value": string|number }
-  ],
-  "kpis": [
-    { "label": string, "agg": "count|sum|avg|distinctCount",
-      "field": string,                         // omit for count
-      "format": "integer|quantity|currency" }  // optional
-  ],
-  "charts": [
-    { "type": "bar|donut", "title": string, "groupBy": string,
-      "agg": "count|sum|avg", "valueField": string, "topN": number }  // valueField omit for count
-  ],
-  "table": { "columns": [string] }             // optional
-}`;
+/**
+ * A download request from the conversation ("export this as a PDF").
+ *
+ * The model only asks; the browser builds and saves the file from data it already
+ * holds. Nothing the model writes is executed, and no file is produced server-side.
+ */
+const EXPORT_TOOL = {
+  name: 'export_document',
+  description:
+    'Deliver the current analysis and report to the user as a downloadable document. ' +
+    'Call this ONLY when the user explicitly asks to export, download, save, print, or ' +
+    '"send me" a document. Prefer pdf when the user says print, PDF, or sharing with ' +
+    'management; prefer html when they say web page, email, or HTML.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      format: { type: 'string', enum: ['pdf', 'html'], description: 'Document format.' },
+    },
+    required: ['format'],
+  },
+};
 
 function systemPrompt(dataContext) {
   const pending = dataContext?.coverage === 'pending';
@@ -88,19 +223,34 @@ function systemPrompt(dataContext) {
     'Ground every figure ONLY in the DATA SUMMARY below — never invent numbers.',
     '',
     'When the user wants to see, chart, break down, compare, or build/create a report or',
-    'dashboard, include EXACTLY ONE report block in your reply, wrapped in tags:',
-    '<report>',
-    '{ ...valid JSON matching the shape below... }',
-    '</report>',
+    'dashboard, call the `emit_report` tool. Describe the report in 1–2 sentences of prose',
+    'as well — the prose is shown to the user, the tool call renders the dashboard.',
     '',
-    'Report JSON shape:',
-    REPORT_SHAPE,
+    'When the user asks for analysis, insight, a summary, or a document to share,',
+    'also call `write_analysis` — the narrative half of a report, which a spec cannot',
+    'express. It renders above the report and opens any exported document.',
+    '',
+    'When the user asks to export, download, save or print, call `export_document`.',
+    'Pair it with `write_analysis` (and `emit_report` if none exists yet) so the',
+    'document has something to say — a document with no analysis is a bare table.',
+    '',
+    'CHANGING A REPORT THAT IS ALREADY ON SCREEN:',
+    '- When a report exists, its spec is given to you at the end of the latest user message.',
+    '- A report is REPLACED, never patched: to change one thing, call `emit_report` again with',
+    '  the FULL spec — the parts that stay the same, copied across, plus the change.',
+    '- Visual requests ("more compact", "bigger charts", "one colour", "too busy", "simplify")',
+    '  are the `design` block. Content requests (different field, another chart, a filter) are',
+    '  the rest of the spec. Either way you re-emit the whole thing.',
+    '- If a visual request is not expressible in `design`, say so plainly and offer the nearest',
+    '  option. Do not claim to have applied a style the schema cannot carry.',
     '',
     'Rules:',
-    '- Inside the tags: valid JSON only. No comments, no trailing commas, no code fences.',
     '- Use ONLY field names from the SCHEMA.',
-    '- Write a short (1–2 sentence) explanation OUTSIDE the tags as normal prose.',
-    '- At most one <report> block. If the user only asks a question, answer in prose with no block.',
+    '- Call each tool at most once per reply.',
+    '- If the user only asks a question, answer in prose and call no tools.',
+    '- Never write a report or analysis as JSON in your prose — always use the tools.',
+    '- In `write_analysis`, never state a number the DATA SUMMARY does not contain.',
+    '  Describe magnitude in words instead. The app renders the exact figures.',
     '',
     // The datasets here reach ~11,000,000 rows, and D365 OData cannot GROUP BY or
     // SUM. Counts are always exact and free; sums require reading every matching
@@ -109,14 +259,14 @@ function systemPrompt(dataContext) {
     // that cannot be computed.
     'IMPORTANT — what can and cannot be computed:',
     `- This dataset currently has ${rowCount.toLocaleString()} matching rows.`,
-    '- COUNT is always exact and free, at any size. Prefer "agg":"count" KPIs.',
+    '- COUNT is always exact and free, at any size. Prefer "count" KPIs.',
     '- Filters on a field marked "enum" in the SCHEMA must use a value from its "values" list.',
     '- "contains" only works on text fields.',
     pending
       ? [
           '- SUMS, AVERAGES, DISTINCT COUNTS and CHARTS ARE NOT AVAILABLE for this slice:',
           '  it is too large to total. The DATA SUMMARY has no sum_/avg_/top_ entries.',
-          '  DO NOT propose a "sum", "avg" or "distinctCount" KPI, and DO NOT propose charts.',
+          '  DO NOT propose a "sum", "avg" or "distinctCount" KPI, and pass an empty charts array.',
           '  Instead: answer with count-based KPIs and a table, and tell the user in prose to',
           '  narrow the slice (date range, or a search term) so totals can be computed.',
         ].join('\n')
@@ -145,76 +295,71 @@ async function readBody(req) {
   return raw ? JSON.parse(raw) : {};
 }
 
-/** Try hard to parse a report JSON string; strips stray code fences. */
-function tryParseReport(text) {
-  let s = String(text || '').trim();
-  s = s.replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
-  const start = s.indexOf('{');
-  const end = s.lastIndexOf('}');
-  if (start === -1 || end === -1) return null;
-  try {
-    return JSON.parse(s.slice(start, end + 1));
-  } catch {
-    return null;
-  }
+/** Keep only the roles Claude accepts, and drop empty turns the API rejects. */
+function sanitizeMessages(messages) {
+  return (Array.isArray(messages) ? messages : [])
+    .filter((m) => (m?.role === 'user' || m?.role === 'assistant') && String(m.content || '').trim())
+    .map((m) => ({ role: m.role, content: String(m.content) }));
 }
 
 /**
- * Streaming extractor: forwards prose to `onText` while pulling the
- * `<report>…</report>` block out (never shown to the user) into `onReport`.
+ * Append the on-screen report's spec to the final user turn.
+ *
+ * The model needs to see what it built before it can be asked to change it —
+ * the conversation carries prose only, so without this "make that a donut" or
+ * "make it more compact" has no subject and the model rebuilds the whole report
+ * from the memory of its own sentences.
+ *
+ * It rides on the MESSAGES rather than in the system prompt on purpose: the
+ * system block is prompt-cached and identical across turns, and a value that
+ * changes with every report would invalidate that cache on every reply.
  */
-function createExtractor(onText, onReport) {
-  const OPEN = '<report>';
-  const CLOSE = '</report>';
-  let mode = 'out';
-  let out = '';
-  let rep = '';
+function withCurrentReport(turns, currentReport) {
+  if (!currentReport || !turns.length) return turns;
 
-  function feed(chunk) {
-    if (mode === 'out') {
-      out += chunk;
-      const i = out.indexOf(OPEN);
-      if (i !== -1) {
-        const before = out.slice(0, i);
-        if (before) onText(before);
-        const rest = out.slice(i + OPEN.length);
-        out = '';
-        mode = 'in';
-        rep = '';
-        feed(rest);
-      } else {
-        // Forward everything except a possible partial "<report>" tail.
-        const keep = Math.min(out.length, OPEN.length - 1);
-        const safe = out.slice(0, out.length - keep);
-        if (safe) onText(safe);
-        out = out.slice(out.length - keep);
-      }
-    } else {
-      rep += chunk;
-      const j = rep.indexOf(CLOSE);
-      if (j !== -1) {
-        const spec = tryParseReport(rep.slice(0, j));
-        if (spec) onReport(spec);
-        const rest = rep.slice(j + CLOSE.length);
-        rep = '';
-        mode = 'out';
-        out = '';
-        feed(rest);
-      }
-    }
+  const last = turns[turns.length - 1];
+  if (last.role !== 'user') return turns;
+
+  const note = [
+    '',
+    '',
+    '[Context, not part of my message: the report currently on screen, as the spec you emitted',
+    'for it. If I am asking you to change, restyle, extend or simplify the report, call',
+    'emit_report again with the FULL updated spec, not just the changed part:',
+    JSON.stringify(currentReport),
+    ']',
+  ].join('\n');
+
+  return [...turns.slice(0, -1), { ...last, content: last.content + note }];
+}
+
+/** Turn an SDK error into something a user can act on. */
+function explain(err) {
+  if (err instanceof Anthropic.AuthenticationError) {
+    return 'The Anthropic API key was rejected. Check ANTHROPIC_API_KEY.';
   }
-
-  function flush() {
-    if (mode === 'out' && out) {
-      onText(out);
-      out = '';
-    } else if (mode === 'in' && rep) {
-      const spec = tryParseReport(rep);
-      if (spec) onReport(spec);
-    }
+  if (err instanceof Anthropic.PermissionDeniedError) {
+    return 'This Anthropic API key is not allowed to use that model.';
   }
-
-  return { feed, flush };
+  if (err instanceof Anthropic.RateLimitError) {
+    return 'Claude is rate-limited right now. Wait a moment and try again.';
+  }
+  if (err instanceof Anthropic.BadRequestError) {
+    // The most common first-run failure: a valid key on an account with no
+    // credits. The raw 400 buries that, so name it plainly — an API key and API
+    // credits are separate from a claude.ai subscription.
+    if (/credit balance is too low/i.test(err.message || '')) {
+      return 'The Anthropic account has no API credits. Add credits at console.anthropic.com → Billing (a Claude Pro/Max subscription does not include API credits).';
+    }
+    return `Claude rejected the request: ${err.message}`;
+  }
+  if (err instanceof Anthropic.APIConnectionError) {
+    return 'Could not reach the Anthropic API. Check the network connection.';
+  }
+  if (err instanceof Anthropic.APIError) {
+    return `Anthropic API error ${err.status}: ${err.message}`;
+  }
+  return err?.message || 'Unexpected server error.';
 }
 
 module.exports = async function handler(req, res) {
@@ -229,106 +374,103 @@ module.exports = async function handler(req, res) {
   res.setHeader('Connection', 'keep-alive');
 
   try {
-    const apiKey = process.env.OPENROUTER_API_KEY;
+    const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
       sse(res, {
         type: 'error',
-        message: 'AI is not configured. Set OPENROUTER_API_KEY (free at openrouter.ai) and restart.',
+        message:
+          'AI is not configured. Set ANTHROPIC_API_KEY (console.anthropic.com) and restart.',
       });
       res.end();
       return;
     }
 
-    const { messages = [], dataContext } = await readBody(req);
-    const body = {
-      stream: true,
-      temperature: 0.3,
-      max_tokens: 3000,
-      messages: [{ role: 'system', content: systemPrompt(dataContext) }, ...messages],
-    };
-    const headers = {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-      'X-Title': 'Reports Dashboard',
-    };
-
-    // Candidate models: env override first, then live-discovered free models.
-    const discovered = await discoverFreeModels(apiKey);
-    const candidates = [...new Set([process.env.OPENROUTER_MODEL, ...discovered].filter(Boolean))].slice(
-      0,
-      MAX_ATTEMPTS,
-    );
-
-    let upstream = null;
-    let lastError = 'No free model responded.';
-    for (const model of candidates) {
-      let resp;
-      try {
-        resp = await fetch(OPENROUTER_URL, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({ ...body, model }),
-        });
-      } catch (e) {
-        lastError = e?.message || 'network error';
-        continue; // network hiccup — try the next model
-      }
-      if (resp.ok && resp.body) {
-        upstream = resp;
-        break;
-      }
-      lastError = `${model} → ${resp.status} ${(await resp.text().catch(() => '')).slice(0, 160)}`;
-      // Only auth/billing errors abort; unavailable/rate-limited models skip on.
-      if (FATAL.has(resp.status)) break;
-    }
-
-    if (!upstream) {
-      sse(res, {
-        type: 'error',
-        message: `Free models are busy right now. ${lastError}`.slice(0, 400),
-      });
+    const { messages = [], dataContext, currentReport } = await readBody(req);
+    const turns = withCurrentReport(sanitizeMessages(messages), currentReport);
+    if (!turns.length) {
+      sse(res, { type: 'error', message: 'No message to send.' });
       res.end();
       return;
     }
 
-    const extractor = createExtractor(
-      (text) => sse(res, { type: 'text', text }),
-      (spec) => sse(res, { type: 'report', spec }),
-    );
+    const client = new Anthropic({ apiKey });
 
-    const reader = upstream.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
+    const stream = client.messages.stream({
+      model: process.env.ANTHROPIC_MODEL || DEFAULT_MODEL,
+      max_tokens: 16000,
+      // Adaptive thinking: designing a report against a live schema and coverage
+      // rules is a reasoning task, and Claude decides how much to spend per turn.
+      thinking: { type: 'adaptive' },
+      output_config: { effort: process.env.ANTHROPIC_EFFORT || DEFAULT_EFFORT },
+      // The system prompt carries the schema, aggregates and sample rows — large
+      // and identical across every turn of a conversation. Caching it makes
+      // follow-up questions markedly cheaper; it re-caches when the user changes
+      // the slice, which is exactly when it should.
+      system: [{ type: 'text', text: systemPrompt(dataContext), cache_control: { type: 'ephemeral' } }],
+      tools: [REPORT_TOOL, ANALYSIS_TOOL, EXPORT_TOOL],
+      messages: turns,
+    });
 
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
+    // Which SSE event each tool's arguments become. Claude may call several in
+    // one turn (analyse + report + export), so the block currently streaming is
+    // tracked rather than assumed.
+    const EVENT_FOR_TOOL = {
+      [REPORT_TOOL.name]: (input) => ({ type: 'report', spec: input }),
+      [ANALYSIS_TOOL.name]: (input) => ({ type: 'analysis', analysis: input }),
+      [EXPORT_TOOL.name]: (input) => ({ type: 'export', format: input.format }),
+    };
 
-      let nl;
-      while ((nl = buffer.indexOf('\n')) !== -1) {
-        const line = buffer.slice(0, nl).trim();
-        buffer = buffer.slice(nl + 1);
-        if (!line.startsWith('data:')) continue;
-        const payload = line.slice(5).trim();
-        if (payload === '[DONE]') continue;
-        let json;
-        try {
-          json = JSON.parse(payload);
-        } catch {
-          continue;
-        }
-        const delta = json?.choices?.[0]?.delta?.content;
-        if (typeof delta === 'string' && delta) extractor.feed(delta);
+    // Accumulates the streamed tool arguments. The API guarantees the assembled
+    // string is valid JSON, but a stream cut short mid-call would not be — hence
+    // the try/catch at the close.
+    let toolJson = null;
+    let toolName = null;
+
+    for await (const event of stream) {
+      switch (event.type) {
+        case 'content_block_start':
+          if (event.content_block.type === 'tool_use' && EVENT_FOR_TOOL[event.content_block.name]) {
+            toolName = event.content_block.name;
+            toolJson = '';
+          }
+          break;
+
+        case 'content_block_delta':
+          if (event.delta.type === 'text_delta') {
+            // Prose — stream it straight through to the chat panel.
+            if (event.delta.text) sse(res, { type: 'text', text: event.delta.text });
+          } else if (event.delta.type === 'input_json_delta' && toolJson !== null) {
+            toolJson += event.delta.partial_json;
+          }
+          // thinking_delta is intentionally ignored: `display` defaults to
+          // omitted, and the chat panel has no surface for reasoning.
+          break;
+
+        case 'content_block_stop':
+          if (toolJson !== null) {
+            try {
+              sse(res, EVENT_FOR_TOOL[toolName](JSON.parse(toolJson)));
+            } catch {
+              // Truncated tool call — prose still reached the user, so say
+              // nothing rather than replacing a partial answer with an error.
+            }
+            toolJson = null;
+            toolName = null;
+          }
+          break;
       }
     }
 
-    extractor.flush();
+    const final = await stream.finalMessage();
+    if (final.stop_reason === 'refusal') {
+      sse(res, { type: 'error', message: 'Claude declined to answer that request.' });
+    }
+
     sse(res, { type: 'done' });
     res.end();
   } catch (err) {
     console.error('[api/chat] error:', err);
-    sse(res, { type: 'error', message: err?.message || 'Unexpected server error.' });
+    sse(res, { type: 'error', message: explain(err) });
     res.end();
   }
 };

@@ -153,7 +153,7 @@
           <h3 class="text-sm font-semibold text-content">Theme</h3>
           <p class="text-xs text-faint">Choose a light or dark interface.</p>
         </div>
-        <div class="inline-flex w-fit gap-1 rounded-xl border border-border-soft bg-surface-muted p-1">
+        <div class="segment w-fit">
           <button type="button" class="seg" [class.seg-active]="!model.isDark()" (click)="model.setDark(false)">
             <app-icon [path]="icons.sun" [size]="16" />
             Light

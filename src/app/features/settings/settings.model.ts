@@ -10,7 +10,8 @@ export interface BrandPreset {
 
 /** Curated brand colour pairings for one-click theming. */
 const PRESETS: BrandPreset[] = [
-  { name: 'Navy & Orange', primary: '#002559', accent: '#f24c1a' },
+  { name: 'Blue & Orange', primary: '#0b3d91', accent: '#f24c1a' },
+  { name: 'Deep Navy', primary: '#002559', accent: '#f24c1a' },
   { name: 'Indigo & Pink', primary: '#4f46e5', accent: '#ec4899' },
   { name: 'Emerald & Amber', primary: '#047857', accent: '#f59e0b' },
   { name: 'Slate & Sky', primary: '#0f172a', accent: '#0ea5e9' },

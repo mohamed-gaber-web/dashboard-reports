@@ -1,34 +1,49 @@
 import { Injectable } from '@angular/core';
+import { Analysis, DocumentFormat } from '../models/analysis.model';
 import { ChatMessage, ChatStreamEvent } from '../models/chat-message.model';
 import { DataContext } from './data-context.service';
 
 interface StreamHandlers {
   onText: (text: string) => void;
   onReport: (spec: unknown) => void;
+  onAnalysis: (analysis: Analysis) => void;
+  onExport: (format: DocumentFormat) => void;
   onDone: () => void;
   onError: (message: string) => void;
 }
 
 /**
- * Talks to the `/api/chat` serverless endpoint (which holds the OpenRouter key)
+ * Talks to the `/api/chat` serverless endpoint (which holds the Anthropic key)
  * and dispatches the Server-Sent Events it streams back. The browser never sees
  * the API key.
  */
 @Injectable({ providedIn: 'root' })
 export class ChatApiService {
-  /** Send the conversation + data context; stream events to the handlers. */
+  /**
+   * Send the conversation + data context; stream events to the handlers.
+   *
+   * `currentReport` is the spec of the report currently on screen, when there is
+   * one. Without it the model is blind to its own output — the conversation
+   * carries prose only, so "make that chart a donut" or "make it compact" had
+   * nothing to modify and the model had to guess the whole report again from
+   * memory of what it said. It travels with the MESSAGES, deliberately, not in
+   * the system prompt: the system block is prompt-cached and identical across
+   * turns, and threading a value that changes every turn through it would
+   * invalidate that cache on every reply.
+   */
   async stream(
     messages: ChatMessage[],
     dataContext: DataContext,
     handlers: StreamHandlers,
     signal?: AbortSignal,
+    currentReport?: unknown,
   ): Promise<void> {
     let response: Response;
     try {
       response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages, dataContext }),
+        body: JSON.stringify({ messages, dataContext, currentReport }),
         signal,
       });
     } catch {
@@ -87,6 +102,12 @@ export class ChatApiService {
         break;
       case 'report':
         handlers.onReport(event.spec);
+        break;
+      case 'analysis':
+        handlers.onAnalysis(event.analysis);
+        break;
+      case 'export':
+        handlers.onExport(event.format);
         break;
       case 'error':
         handlers.onError(event.message);

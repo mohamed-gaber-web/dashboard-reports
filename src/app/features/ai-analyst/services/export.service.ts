@@ -2,8 +2,10 @@ import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../../core/http/api.service';
 import { D365_MAX_PAGE_SIZE } from '../../../core/models/odata.model';
+import { Analysis } from '../models/analysis.model';
 import { AnalystSource } from '../models/analyst-source.model';
 import { ReportResult } from '../models/report-spec.model';
+import { buildDocument, documentTitle } from './document-builder';
 
 /** Excel's hard ceiling — 1,048,576 rows per sheet, including the header. */
 const EXCEL_MAX_ROWS = 1_048_575;
@@ -39,6 +41,14 @@ export class ExportTooLargeError extends Error {
 export interface ExportProgress {
   written: number;
   total: number;
+}
+
+/** Everything the designed document needs. See {@link buildDocument}. */
+export interface DocumentContext {
+  result: ReportResult;
+  analysis?: Analysis | null;
+  sourceLabel: string;
+  brandName: string;
 }
 
 /**
@@ -163,14 +173,28 @@ export class ExportService {
     return rowCount > EXCEL_MAX_ROWS;
   }
 
-  /** Open a clean printable view of the report and trigger the print/PDF dialog. */
-  exportPdf(result: ReportResult): void {
-    const win = window.open('', '_blank', 'width=900,height=1200');
+  /**
+   * The designed document, sent to the print dialog (→ "Save as PDF").
+   *
+   * There is no PDF library here on purpose: the browser's own print engine
+   * already paginates, embeds fonts and honours `@page`, and it does so without
+   * adding a multi-megabyte dependency to a dashboard.
+   */
+  exportPdf(input: DocumentContext): void {
+    const win = window.open('', '_blank', 'width=980,height=1200');
     if (!win) return;
-    win.document.write(this.printableHtml(result));
+    win.document.write(buildDocument(input));
     win.document.close();
     win.focus();
-    win.setTimeout(() => win.print(), 250);
+    // Give the SVG and web fonts a beat to lay out; printing too early prints
+    // a half-rendered first page.
+    win.setTimeout(() => win.print(), 400);
+  }
+
+  /** The same designed document, saved as a standalone `.html` file. */
+  exportHtml(input: DocumentContext): void {
+    const blob = new Blob([buildDocument(input)], { type: 'text/html;charset=utf-8' });
+    this.download(blob, `${this.slug(documentTitle(input))}.html`);
   }
 
   // ── Internals ────────────────────────────────────────────────────────────
@@ -210,61 +234,6 @@ export class ExportService {
     URL.revokeObjectURL(url);
   }
 
-  private printableHtml(result: ReportResult): string {
-    const kpis = result.kpis
-      .map(
-        (k) =>
-          `<div class="kpi"><span class="kpi-label">${esc(k.label)}</span>` +
-          `<span class="kpi-value">${esc(k.value)}</span></div>`,
-      )
-      .join('');
-
-    let table = '';
-    const t = result.table;
-    if (t && t.displayRows.length) {
-      const head = t.columns.map((c) => `<th>${esc(c.header)}</th>`).join('');
-      const body = t.displayRows
-        .map((row) => {
-          const cells = t.columns
-            .map((c) => {
-              const raw = row[c.key];
-              const val = c.format ? c.format(raw as never, row as never) : String(raw ?? '');
-              return `<td>${esc(val)}</td>`;
-            })
-            .join('');
-          return `<tr>${cells}</tr>`;
-        })
-        .join('');
-      const note =
-        t.total > t.displayRows.length
-          ? `<p class="sub">Showing ${t.displayRows.length} of ${t.total.toLocaleString()} rows.</p>`
-          : '';
-      table = `${note}<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
-    }
-
-    return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(result.title)}</title>
-      <style>
-        * { box-sizing: border-box; }
-        body { font-family: 'Segoe UI', system-ui, sans-serif; color: #0c1626; margin: 32px; }
-        h1 { font-size: 22px; margin: 0 0 4px; }
-        p.sub { color: #55627a; margin: 0 0 20px; font-size: 13px; }
-        .kpis { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 24px; }
-        .kpi { border: 1px solid #e8edf4; border-radius: 12px; padding: 12px 16px; min-width: 150px; }
-        .kpi-label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: #8a95a8; }
-        .kpi-value { display: block; font-size: 24px; font-weight: 700; margin-top: 4px; }
-        table { width: 100%; border-collapse: collapse; font-size: 12px; }
-        th { text-align: left; text-transform: uppercase; font-size: 10px; letter-spacing: .04em; color: #8a95a8; border-bottom: 2px solid #e8edf4; padding: 8px; }
-        td { padding: 7px 8px; border-bottom: 1px solid #eef2f7; }
-        @media print { body { margin: 12mm; } }
-      </style></head>
-      <body>
-        <h1>${esc(result.title)}</h1>
-        <p class="sub">${esc(result.description ?? '')} · ${result.rowCount.toLocaleString()} rows</p>
-        <div class="kpis">${kpis}</div>
-        ${table}
-      </body></html>`;
-  }
-
   private slug(title: string): string {
     return (title || 'report').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
   }
@@ -277,12 +246,4 @@ function headerOf(table: NonNullable<ReportResult['table']>, key: string): strin
 function csvCell(value: unknown): string {
   const s = value == null ? '' : String(value);
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-}
-
-function esc(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
 }

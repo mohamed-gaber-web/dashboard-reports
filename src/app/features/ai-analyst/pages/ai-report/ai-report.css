@@ -1,3 +1,764 @@
+/*
+  A workspace, not a document.
+
+  The page lays out top-to-bottom and claims the full height the shell gives it,
+  with the two panes scrolling independently, so the composer and the filters are
+  always in view.
+*/
 :host {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+/*
+ * `.field`, `.field-search`, `.field-label` and the segmented control moved to
+ * styles.css as shared primitives — this was one of three independent copies of
+ * the field styles, and a second, differently-named copy of the segmented one.
+ */
+
+/* ── Control bar ────────────────────────────────────────────────────────── */
+
+/* `flex: none` — the bar is chrome. It keeps its height whatever the report
+   below it does, so the filters and the row count never get squeezed. */
+.control-bar {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  overflow: visible;
+}
+
+.control-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1rem;
+  padding: 0.85rem 1rem;
+}
+
+/* The hairline is what makes two rows read as one object rather than two cards. */
+.control-row-filters {
+  align-items: flex-end;
+  border-top: 1px solid var(--border-soft);
+  background: color-mix(in srgb, var(--surface-muted) 45%, transparent);
+}
+
+/*
+ * The tinted row only takes the card's bottom radius when nothing follows it.
+ * When the too-many-rows note is showing, the note is last and the square
+ * corners belong to it — otherwise the tint would round off mid-card.
+ */
+.control-row-filters:last-child {
+  border-radius: 0 0 var(--radius-2xl) var(--radius-2xl);
+}
+.control-note:last-child {
+  border-radius: 0 0 var(--radius-2xl) var(--radius-2xl);
+}
+
+.control-note {
+  border-top: 1px solid var(--border-soft);
+  padding: 0.65rem 1rem 0.8rem;
+  font-size: 0.75rem;
+  line-height: 1.6;
+  color: var(--content-muted);
+}
+
+/* The product mark. Brand → accent, the one place the two meet directly. */
+.brand-spark {
+  display: grid;
+  place-items: center;
+  height: 2.25rem;
+  width: 2.25rem;
+  flex-shrink: 0;
+  border-radius: 0.7rem;
+  color: #fff;
+  background: linear-gradient(135deg, var(--color-brand-500), var(--color-accent-500));
+  box-shadow: var(--shadow-sm);
+}
+
+/* ── Export menu ────────────────────────────────────────────────────────── */
+
+.export-menu-wrap {
+  position: relative;
+}
+
+.export-chevron {
+  display: inline-flex;
+  transition: transform 0.2s var(--ease-out);
+}
+.export-chevron-open {
+  transform: rotate(180deg);
+}
+
+.export-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.4rem);
+  z-index: 40;
+  min-width: 15rem;
+  padding: 0.35rem;
+  border-radius: 0.85rem;
+  border: 1px solid var(--border-soft);
+  background: var(--surface);
+  box-shadow: var(--shadow-xl);
+  animation: menu-in 0.16s var(--ease-out) both;
+}
+
+@keyframes menu-in {
+  from { opacity: 0; transform: translateY(-6px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+
+.export-group {
+  padding: 0.4rem 0.55rem 0.25rem;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--content-faint);
+}
+
+.export-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  border-radius: 0.55rem;
+  padding: 0.5rem 0.55rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--content);
+  cursor: pointer;
+  transition:
+    background-color 0.13s ease,
+    color 0.13s ease;
+}
+.export-item:hover {
+  background-color: var(--surface-muted);
+}
+.export-item app-icon {
+  color: var(--content-faint);
+  transition: color 0.13s ease;
+}
+.export-item:hover app-icon {
+  color: var(--color-brand-400);
+}
+
+.export-note {
+  font-size: 0.6875rem;
+  color: var(--content-faint);
+}
+
+/* ── Source picker ─────────────────────────────────────────── */
+
+/*
+ * Replaces the segmented control. A segment shows every option at once, so its
+ * width is a function of the module count — fine at two, a wrapping toolbar at
+ * eight. This is fixed-width whatever the list holds.
+ */
+.source-picker-wrap {
+  position: relative;
+}
+
+/* A control you pick from, so it sits on --border-strong like the other inputs. */
+.source-trigger {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 11.5rem;
+  border-radius: 0.7rem;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  padding: 0.4rem 0.6rem;
+  color: var(--content);
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+.source-trigger:hover {
+  border-color: var(--color-brand-400);
+  background: var(--surface-muted);
+}
+.source-trigger:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+.source-trigger > app-icon {
+  color: var(--color-brand-400);
+  flex-shrink: 0;
+}
+.source-trigger .export-chevron {
+  margin-left: auto;
+  color: var(--content-faint);
+}
+
+.source-trigger-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.15;
+  min-width: 0;
+}
+
+/* The label alone reads as a random noun in a toolbar; the eyebrow names it. */
+.source-trigger-eyebrow {
+  font-size: 0.5875rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--content-faint);
+}
+
+.source-trigger-label {
+  max-width: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.source-menu {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 0.4rem);
+  z-index: 40;
+  width: 20rem;
+  max-width: min(20rem, calc(100vw - 2rem));
+  padding: 0.35rem;
+  border-radius: 0.85rem;
+  border: 1px solid var(--border-soft);
+  background: var(--surface);
+  box-shadow: var(--shadow-xl);
+  animation: menu-in 0.16s var(--ease-out) both;
+}
+
+/* Says what the popup is a list of, which the trigger's eyebrow cannot do once
+   the menu covers it. */
+.source-menu-title {
+  padding: 0.4rem 0.55rem 0.35rem;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--content-faint);
+}
+
+.source-trigger-open {
+  border-color: var(--color-brand-400);
+  background: var(--surface-muted);
+}
+
+/* Reserves the tick's column so rows do not shift when the selection moves. */
+.source-item-spacer {
+  width: 15px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.source-search {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-bottom: 0.25rem;
+  border-bottom: 1px solid var(--border-soft);
+  padding: 0.3rem 0.55rem 0.45rem;
+  color: var(--content-faint);
+}
+
+.source-search-input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  font-size: 0.8125rem;
+  color: var(--content);
+}
+.source-search-input:focus {
+  outline: none;
+}
+.source-search-input::placeholder {
+  color: var(--content-faint);
+}
+
+/* Caps the menu at roughly six rows; past that it scrolls rather than running
+   off the viewport, which is the whole point of moving off a tab strip. */
+.source-list {
+  max-height: 19rem;
+  overflow-y: auto;
+}
+
+.source-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  border-radius: 0.55rem;
+  padding: 0.5rem 0.55rem;
+  text-align: left;
+  color: var(--content);
+  cursor: pointer;
+  transition: background-color 0.13s ease;
+}
+.source-item:hover {
+  background-color: var(--surface-muted);
+}
+.source-item:focus-visible {
+  outline: none;
+  background-color: var(--surface-muted);
+  box-shadow: var(--ring);
+}
+.source-item app-icon {
+  margin-left: auto;
+  flex-shrink: 0;
+  color: var(--color-brand-400);
+}
+
+.source-item-active {
+  background-color: color-mix(in srgb, var(--color-brand-400) 10%, transparent);
+}
+
+.source-item-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.source-item-label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.source-item-desc {
+  font-size: 0.6875rem;
+  line-height: 1.45;
+  color: var(--content-faint);
+}
+
+.source-empty {
+  padding: 0.85rem 0.6rem;
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--content-faint);
+}
+
+/* ── Filter form ────────────────────────────────────────────────────────── */
+
+/*
+ * One rhythm for every control in the row. The fields were sized ad hoc — a
+ * `min-w-56 flex-1` search next to two intrinsically-sized date inputs — so the
+ * row's controls started and ended at different places and the labels sat at
+ * different heights once anything wrapped.
+ */
+.filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+
+.filter-search {
+  flex: 1 1 16rem;
+  min-width: 12rem;
+  max-width: 26rem;
+}
+
+/* A fieldset's legend is out of flow by default; this row needs it in flow. */
+.filter-range legend {
+  float: left;
+  padding: 0;
+}
+.filter-range .range-row {
+  clear: both;
+}
+
+.range-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.range-row .field {
+  width: auto;
+  min-width: 8.5rem;
+}
+
+.range-dash {
+  color: var(--content-faint);
+  user-select: none;
+}
+
+/* Aligns with the inputs' baseline, not with their labels. */
+.filter-clear {
+  align-self: flex-end;
+  margin-bottom: 0.05rem;
+}
+
+/* ── Slice status ───────────────────────────────────────────────────────── */
+
+.count-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8125rem;
+  color: var(--content-muted);
+  white-space: nowrap;
+}
+
+.count-spinner {
+  height: 0.75rem;
+  width: 0.75rem;
+  border-radius: 9999px;
+  border: 2px solid color-mix(in srgb, var(--color-brand-400) 30%, transparent);
+  border-top-color: var(--color-brand-400);
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/*
+ * Fold progress. The percentage was plain text; a filled track shows the same
+ * number as a quantity, which is what "43%" actually means.
+ */
+.fold-progress {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  overflow: hidden;
+  border-radius: 9999px;
+  border: 1px solid color-mix(in srgb, var(--color-brand-400) 30%, transparent);
+  padding: 0.2rem 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--content);
+  white-space: nowrap;
+}
+.fold-progress::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  right: auto;
+  width: var(--pct, 0%);
+  background: color-mix(in srgb, var(--color-brand-400) 22%, transparent);
+  transition: width 0.3s ease;
+}
+.fold-progress > * {
+  position: relative;
+}
+
+/* ── Workspace ──────────────────────────────────────────────────────────── */
+
+/*
+ * Report above, conversation docked below. Two columns cost the report ~360px
+ * of width on every screen — and the charts and the detail table are the widest
+ * things on the page, so they were the ones paying for it.
+ */
+.workspace {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+  gap: 0.85rem;
+  margin-top: 1rem;
+}
+
+/*
+ * Below the frame's breakpoint the two panes stop fighting over one screen:
+ * the page scrolls normally and the dock takes a comfortable fixed height
+ * rather than a third of a short viewport, which on a phone left about two
+ * lines of conversation.
+ */
+@media (max-height: 600px) {
+  .workspace {
+    min-height: 34rem;
+  }
+}
+
+.report-pane {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+/* The only thing that scrolls. The dock below it never moves. */
+.report-scroll {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* Room for the focus ring / hover lift on anything against an edge. */
+  padding: 0.15rem 0.15rem 0.35rem;
+}
+
+/*
+ * Fixed height, and `flex: none` so a long conversation grows the chat's own
+ * scroller rather than eating the report's height. The clamp keeps the composer
+ * plus a couple of turns visible on a laptop without taking half of a big
+ * monitor.
+ */
+.chat-dock {
+  /*
+   * Sticky as well as docked, deliberately — the two cover different regimes.
+   *
+   * Inside the app frame the workspace is exactly one screen tall, so the flex
+   * dock alone already holds the composer at the bottom and `sticky` costs
+   * nothing. But the moment anything makes the page itself scroll — a short
+   * viewport, a browser without `dvh`, a zoom level, a future screen that
+   * stacks something above the workspace — the flex dock scrolls away with the
+   * page and `bottom: 0` is what keeps it against the bottom edge. Belt and
+   * braces on the one control the user must never have to hunt for.
+   */
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  flex: none;
+  min-height: 0;
+  height: clamp(13.5rem, 30vh, 22rem);
+  /* Matches the panel's own card radius so the lift below sits under its
+     corners rather than squaring them off. */
+  border-radius: var(--radius-2xl);
+  /* Reads as a layer over the report while content passes beneath it. */
+  box-shadow: 0 -12px 28px -22px rgba(15, 27, 45, 0.55);
+  transition: height 0.22s var(--ease-out);
+}
+
+/*
+ * `:host-context`, not `.dark .chat-dock`. `.dark` is on <html>, which never
+ * carries this component's `_ngcontent` attribute, so the plain descendant
+ * selector compiles to something that matches nothing — the same silent failure
+ * that hid `.prose-chat` in the chat panel. Every other component stylesheet
+ * here avoids the problem by styling with tokens; a directional shadow has no
+ * token to use.
+ */
+:host-context(.dark) .chat-dock {
+  box-shadow: 0 -12px 30px -20px rgba(0, 0, 0, 0.75);
+}
+
+/*
+ * Collapsed: the dock is exactly as tall as the header and the composer, and
+ * every row it gives up goes to the report above it. The composer does not
+ * move relative to the bottom of the workspace either way — that is the whole
+ * point of docking it.
+ */
+.chat-dock-collapsed {
+  height: auto;
+}
+
+/* ── Starter ────────────────────────────────────────────────────────────── */
+
+/*
+ * The empty state is the screen the analyst is looked at longest — it is what
+ * you see before the first question and again after every source switch. It
+ * centres on a short pane and pins to the top of a tall one, so on a big
+ * monitor the content does not float in the middle of an empty card.
+ */
+.starter {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.4rem;
+  padding: clamp(1.75rem, 4vh, 3rem) 1.5rem;
+  text-align: center;
+}
+
+.starter-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.starter-copy {
+  max-width: 34rem;
+}
+
+.starter-title {
+  font-size: 1.375rem;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+  line-height: 1.25;
+  color: var(--content);
+  text-wrap: balance;
+}
+
+.starter-lede {
+  margin-top: 0.55rem;
+  font-size: 0.875rem;
+  line-height: 1.65;
+  color: var(--content-muted);
+  text-wrap: pretty;
+}
+
+/* ── Scope strip ────────────────────────────────────────────────────────── */
+
+/*
+ * One line that answers "what am I asking about, and how much of it is there?"
+ * — source, what it holds, the exact size of the current slice, and the single
+ * action that unlocks sums. It is a strip rather than a card so it reads as a
+ * caption on the screen behind it, not a second offer competing with the
+ * prompts below.
+ */
+.starter-scope {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem 0.7rem;
+  width: 100%;
+  max-width: 44rem;
+  border-block: 1px solid var(--border-soft);
+  padding: 0.7rem 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--content-muted);
+}
+
+.scope-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 600;
+  color: var(--content);
+}
+.scope-source app-icon {
+  color: var(--color-brand-400);
+}
+
+.scope-desc {
+  min-width: 0;
+  color: var(--content-faint);
+}
+
+.scope-state {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  margin-inline-start: auto;
+}
+/* On one line the state sits at the end; once it wraps, centred reads better
+   than a lone right-aligned fragment under a centred strip. */
+@media (max-width: 48rem) {
+  .scope-state {
+    margin-inline-start: 0;
+  }
+}
+
+.starter-blocked {
+  max-width: 34rem;
+  font-size: 0.75rem;
+  line-height: 1.55;
+  color: var(--content-faint);
+}
+
+/* ── Prompts ────────────────────────────────────────────────────────────── */
+
+.starter-chips {
+  display: grid;
+  gap: 0.55rem;
+  width: 100%;
+  max-width: 44rem;
+}
+@media (min-width: 40rem) {
+  .starter-chips {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.starter-mark {
+  display: grid;
+  place-items: center;
+  height: 3.5rem;
+  width: 3.5rem;
+  border-radius: 1.1rem;
+  color: #fff;
+  background: linear-gradient(135deg, var(--color-brand-500), var(--color-accent-500));
+  box-shadow: var(--shadow-md);
+  /* Breathes once on arrival, then rests. */
+  animation: pop-in 0.5s var(--ease-out) both;
+}
+
+/* Starter prompts, shown where the report will appear. */
+.starter-chip {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  text-align: left;
+  /* The affordance the chips were missing: they looked like static callouts
+     rather than four things you can press. */
+  --chip-go: 0;
+  border-radius: 0.75rem;
+  border: 1px solid var(--border-soft);
+  background: var(--surface);
+  padding: 0.7rem 0.85rem;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--content-muted);
+  cursor: pointer;
+  transition:
+    border-color 0.16s ease,
+    color 0.16s ease,
+    transform 0.16s var(--ease-out),
+    box-shadow 0.16s ease;
+}
+.starter-chip:hover:not(:disabled) {
+  border-color: var(--color-brand-400);
+  color: var(--content);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+.starter-chip:active:not(:disabled) {
+  transform: translateY(0);
+}
+.starter-chip:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.starter-chip-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+  color: var(--color-accent-500);
+  opacity: 0.7;
+  transition: opacity 0.16s ease;
+}
+.starter-chip:hover:not(:disabled) .starter-chip-icon {
+  opacity: 1;
+}
+
+/* The chevron turns into a "go" arrow on hover — rotated, so the icon set does
+   not grow a second glyph for the same idea. */
+.starter-chip-go {
+  display: inline-flex;
+  flex-shrink: 0;
+  margin-top: 0.05rem;
+  transform: rotate(-90deg) translateY(0.15rem);
+  color: var(--content-faint);
+  opacity: 0;
+  transition:
+    opacity 0.16s ease,
+    transform 0.16s var(--ease-out);
+}
+.starter-chip:hover:not(:disabled) .starter-chip-go,
+.starter-chip:focus-visible .starter-chip-go {
+  opacity: 1;
+  transform: rotate(-90deg) translate(0.15rem, 0.15rem);
+  color: var(--color-brand-400);
+}
+
+.starter-chip:focus-visible {
+  outline: none;
+  border-color: var(--color-brand-400);
+  box-shadow: var(--ring);
 }

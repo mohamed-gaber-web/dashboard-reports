@@ -1,50 +1,167 @@
-<div class="flex flex-col gap-6">
-  <app-page-header
-    eyebrow="AI Analyst"
-    title="Chat with your data"
-    subtitle="Ask questions and build dashboard reports in plain language — then export to Excel or CSV."
-  >
-    @if (model.hasReport()) {
-      <button type="button" (click)="model.exportExcel()" class="btn-ghost">
-        <app-icon [path]="icons.excel" [size]="16" />
-        Excel
-      </button>
-      <button type="button" (click)="model.exportFullDetail()" class="btn-ghost">
-        <app-icon [path]="icons.excel" [size]="16" />
-        Full CSV
-      </button>
-      <button type="button" (click)="model.exportPdf()" class="btn-ghost">
-        <app-icon [path]="icons.pdf" [size]="16" />
-        PDF
-      </button>
-    }
-  </app-page-header>
+<!--
+  Layout: one control bar, then a workspace that fills whatever height is left.
+  The report and the chat scroll independently inside it, so the composer and the
+  filters never leave the screen.
 
-  <!-- Data source tabs: swap the dataset the AI Analyst chats against. -->
-  <div
-    role="tablist"
-    class="inline-flex self-start gap-1 rounded-xl border border-border-soft bg-surface p-1"
-  >
-    @for (source of model.sources; track source.id) {
+  The chrome used to be two stacked blocks — a toolbar and a separate filter card
+  — which cost ~140px before any content and read as two unrelated strips. They
+  are now one card with two rows divided by a hairline: same information, one
+  object, noticeably more room for the actual work.
+-->
+
+<section class="control-bar card card-lg">
+  <!-- Row 1: identity, source, exports. -->
+  <div class="control-row">
+    <div class="flex min-w-0 items-center gap-3">
+      <span class="brand-spark">
+        <app-icon [path]="icons.spark" [size]="18" />
+      </span>
+      <div class="min-w-0">
+        <h1 class="text-base font-bold leading-tight tracking-tight text-content">AI Analyst</h1>
+        <p class="truncate text-xs text-muted">
+          Ask, analyse, then export a designed PDF or HTML document
+        </p>
+      </div>
+    </div>
+
+    <!--
+      Data source. A picker, not a tab strip.
+
+      A segmented control puts every option on screen at once, which is why it
+      reads well at two and falls apart past four — it grows the toolbar until it
+      wraps, and the modules are meant to keep coming. This shows one control of
+      fixed width whatever the list length, and moves the options into a menu
+      that filters once there are enough of them to be worth filtering.
+    -->
+    <div class="source-picker-wrap">
       <button
         type="button"
-        role="tab"
-        [attr.aria-selected]="source.id === model.activeId()"
-        (click)="model.selectSource(source.id)"
-        class="rounded-lg px-4 py-1.5 text-sm font-medium transition-colors"
-        [class]="
-          source.id === model.activeId()
-            ? 'bg-brand-600 text-white shadow-sm'
-            : 'text-muted hover:text-content'
-        "
+        class="source-trigger"
+        [class.source-trigger-open]="sourceOpen()"
+        (click)="toggleSource($event)"
+        (keydown)="onTriggerKeydown($event)"
+        [attr.aria-expanded]="sourceOpen()"
+        aria-haspopup="listbox"
       >
-        {{ source.label }}
+        <app-icon [path]="icons.database" [size]="15" />
+        <span class="source-trigger-text">
+          <span class="source-trigger-eyebrow">Source</span>
+          <span class="source-trigger-label">{{ model.activeSource().label }}</span>
+        </span>
+        <span class="export-chevron" [class.export-chevron-open]="sourceOpen()">
+          <app-icon [path]="icons.chevronDown" [size]="14" />
+        </span>
       </button>
+
+      @if (sourceOpen()) {
+        <div class="source-menu" role="listbox" aria-label="Data source" (keydown)="onSourceKeydown($event)">
+          <p class="source-menu-title">Data source</p>
+
+          @if (showSourceSearch()) {
+            <div class="source-search">
+              <app-icon [path]="icons.search" [size]="14" />
+              <input
+                type="text"
+                class="source-search-input"
+                placeholder="Search modules"
+                aria-label="Search modules"
+                [value]="sourceQuery()"
+                (input)="onSourceSearch($event)"
+              />
+            </div>
+          }
+
+          <div class="source-list">
+            @for (source of visibleSources(); track source.id) {
+              <button
+                type="button"
+                role="option"
+                class="source-item"
+                [class.source-item-active]="source.id === model.activeId()"
+                [attr.aria-selected]="source.id === model.activeId()"
+                (click)="chooseSource(source.id)"
+              >
+                <span class="source-item-text">
+                  <span class="source-item-label">{{ source.label }}</span>
+                  @if (source.description) {
+                    <span class="source-item-desc">{{ source.description }}</span>
+                  }
+                </span>
+                @if (source.id === model.activeId()) {
+                  <app-icon [path]="icons.check" [size]="15" />
+                } @else {
+                  <!-- Holds the column so labels do not shift by 15px when the
+                       selection moves from one row to another. -->
+                  <span class="source-item-spacer" aria-hidden="true"></span>
+                }
+              </button>
+            } @empty {
+              <p class="source-empty">No module matches that search.</p>
+            }
+          </div>
+        </div>
+      }
+    </div>
+
+    <!--
+      One export control. Document exports need only something to say — an
+      analysis with no computed report is still a legitimate brief — so the two
+      groups are gated separately inside the menu rather than by showing and
+      hiding buttons in the toolbar, which made the toolbar's width change as
+      you used it.
+    -->
+    @if (model.hasReport() || model.canExportDocument()) {
+      <div class="export-menu-wrap ml-auto">
+        <button
+          type="button"
+          class="btn-ghost"
+          (click)="toggleExport($event)"
+          [attr.aria-expanded]="exportOpen()"
+          aria-haspopup="menu"
+        >
+          <app-icon [path]="icons.download" [size]="15" />
+          Export
+          <span class="export-chevron" [class.export-chevron-open]="exportOpen()">
+            <app-icon [path]="icons.chevronDown" [size]="14" />
+          </span>
+        </button>
+
+        @if (exportOpen()) {
+          <div class="export-menu" role="menu">
+            @if (model.canExportDocument()) {
+              <p class="export-group">Document</p>
+              <button type="button" role="menuitem" class="export-item" (click)="runExport('pdf')">
+                <app-icon [path]="icons.pdf" [size]="15" />
+                <span class="flex-1 text-left">PDF</span>
+                <span class="export-note">Designed</span>
+              </button>
+              <button type="button" role="menuitem" class="export-item" (click)="runExport('html')">
+                <app-icon [path]="icons.html" [size]="15" />
+                <span class="flex-1 text-left">HTML</span>
+                <span class="export-note">Self-contained</span>
+              </button>
+            }
+            @if (model.hasReport()) {
+              <p class="export-group">Data</p>
+              <button type="button" role="menuitem" class="export-item" (click)="runExport('excel')">
+                <app-icon [path]="icons.excel" [size]="15" />
+                <span class="flex-1 text-left">Excel</span>
+                <span class="export-note">This report</span>
+              </button>
+              <button type="button" role="menuitem" class="export-item" (click)="runExport('csv')">
+                <app-icon [path]="icons.excel" [size]="15" />
+                <span class="flex-1 text-left">Full CSV</span>
+                <span class="export-note">Every row</span>
+              </button>
+            }
+          </div>
+        }
+      </div>
     }
   </div>
 
   <!--
-    The slice picker.
+    Row 2: the slice picker.
 
     This exists because D365 OData cannot sum or group — only count, filter and
     page. Counting is free even across 11M rows, so we always show the exact size
@@ -52,131 +169,267 @@
     possible. Narrowing first is not a limitation we are apologising for; it is
     the thing that makes the numbers real.
   -->
-  <section class="card flex flex-col gap-4 p-4">
-    <div class="flex flex-wrap items-end gap-3">
-      <label class="flex min-w-52 flex-1 flex-col gap-1">
-        <span class="text-xs font-medium uppercase tracking-wide text-muted">Search</span>
+  <div class="control-row control-row-filters">
+    <label class="filter-field filter-search">
+      <span class="field-label">Search</span>
+      <span class="field-wrap">
+        <span class="field-icon">
+          <app-icon [path]="icons.search" [size]="14" />
+        </span>
         <input
           type="search"
           [value]="model.filter().search ?? ''"
           (input)="onSearch($event)"
           placeholder="Order, item, serial or reference…"
-          class="w-full rounded-lg border border-border-soft bg-surface px-3 py-2 text-sm text-content placeholder:text-muted focus:border-brand-500 focus:outline-none"
+          class="field field-sm field-search"
         />
-      </label>
+      </span>
+    </label>
 
-      <label class="flex flex-col gap-1">
-        <span class="text-xs font-medium uppercase tracking-wide text-muted">From</span>
+    <!--
+      From and To are ONE control: a range. They were two independent labelled
+      fields sitting beside Search, so the row read as three unrelated filters
+      and nothing said the two dates bracket each other. One label, two inputs
+      joined by a dash, and `max`/`min` cross-bound so the pair cannot be put
+      in an order that matches nothing.
+    -->
+    <fieldset class="filter-field filter-range">
+      <legend class="field-label">Date range</legend>
+      <div class="range-row">
         <input
           type="date"
           [value]="model.filter().from ?? ''"
+          [attr.max]="model.filter().to || null"
           (change)="onFrom($event)"
-          class="rounded-lg border border-border-soft bg-surface px-3 py-2 text-sm text-content focus:border-brand-500 focus:outline-none"
+          aria-label="From date"
+          class="field field-sm"
         />
-      </label>
-
-      <label class="flex flex-col gap-1">
-        <span class="text-xs font-medium uppercase tracking-wide text-muted">To</span>
+        <span class="range-dash" aria-hidden="true">–</span>
         <input
           type="date"
           [value]="model.filter().to ?? ''"
+          [attr.min]="model.filter().from || null"
           (change)="onTo($event)"
-          class="rounded-lg border border-border-soft bg-surface px-3 py-2 text-sm text-content focus:border-brand-500 focus:outline-none"
+          aria-label="To date"
+          class="field field-sm"
         />
-      </label>
+      </div>
+    </fieldset>
 
-      @if (model.hasFilter()) {
-        <button type="button" (click)="model.clearFilter()" class="btn-ghost">Clear</button>
-      }
-    </div>
+    @if (model.hasFilter()) {
+      <button type="button" (click)="model.clearFilter()" class="btn-ghost btn-sm filter-clear">
+        <app-icon [path]="icons.close" [size]="14" />
+        Clear
+      </button>
+    }
 
     <!-- The count. Exact, free, and the basis of every decision below it. -->
-    <div class="flex flex-wrap items-center gap-3 border-t border-border-soft pt-3">
+    <div class="ml-auto flex flex-wrap items-center gap-2.5">
       @if (model.counting()) {
-        <span class="text-sm text-muted">Counting matching rows…</span>
+        <span class="count-chip">
+          <span class="count-spinner"></span>
+          Counting…
+        </span>
       } @else if (model.dataError(); as error) {
-        <span class="text-sm text-rose-600 dark:text-rose-400">{{ error }}</span>
-        <button type="button" (click)="model.refreshCount()" class="btn-ghost">Try again</button>
+        <span class="text-sm font-medium text-danger">{{ error }}</span>
+        <button type="button" (click)="model.refreshCount()" class="btn-ghost btn-sm">
+          Try again
+        </button>
       } @else if (model.rowCount(); as count) {
-        <span class="text-sm text-content">
-          <strong class="tabular-nums">{{ count.toLocaleString() }}</strong> rows match
+        <span class="count-chip">
+          <app-icon [path]="icons.database" [size]="13" />
+          <strong class="tabular-nums text-content">{{ count.toLocaleString() }}</strong>
+          rows
         </span>
 
         @if (model.folding()) {
-          <span class="text-sm text-muted tabular-nums">
-            Totalling… {{ model.foldProgress() }}%
-            ({{ model.foldLoaded().toLocaleString() }} / {{ count.toLocaleString() }})
+          <span class="fold-progress" [style.--pct.%]="model.foldProgress()">
+            <span class="tabular-nums">Totalling {{ model.foldProgress() }}%</span>
           </span>
-          <button type="button" (click)="model.cancelAnalyze()" class="btn-ghost">Cancel</button>
+          <button type="button" (click)="model.cancelAnalyze()" class="btn-ghost btn-sm">
+            Cancel
+          </button>
         } @else if (model.cube()) {
-          <span
-            class="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300"
-          >
-            Totals ready — sums and charts are exact
+          <span class="pill pill-ok">
+            <app-icon [path]="icons.check" [size]="12" />
+            Totals ready
           </span>
         } @else if (model.tooLarge()) {
-          <span
-            class="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-500/15 dark:text-amber-300"
-          >
-            Too many rows to total (limit {{ model.analyzeLimit.toLocaleString() }})
-          </span>
+          <span class="pill pill-warn">Too many rows to total</span>
         } @else if (model.canAnalyze()) {
-          <button type="button" (click)="model.analyze()" class="btn-primary">
+          <button type="button" (click)="model.analyze()" class="btn-primary btn-sm">
             Total these rows
           </button>
         }
       }
     </div>
+  </div>
 
-    <!--
-      The honest refusal. We know the exact size for free, so we say it and ask for
-      a narrower filter — rather than starting a ~20-minute crawl behind a spinner,
-      or quietly totalling the first 5,000 rows and calling that the answer, which
-      is what this app used to do.
-    -->
-    @if (model.tooLarge() && !model.folding()) {
-      <p class="text-sm leading-relaxed text-muted">
-        Counting, searching and browsing work across all
-        {{ (model.rowCount() ?? 0).toLocaleString() }} rows. Sums, averages and charts
-        need every matching row read, so they’re capped at
-        {{ model.analyzeLimit.toLocaleString() }}. Narrow with a date range or a search
-        term, then total the result.
-      </p>
-    }
-  </section>
+  <!--
+    The honest refusal. We know the exact size for free, so we say it and ask for
+    a narrower filter — rather than starting a ~20-minute crawl behind a spinner,
+    or quietly totalling the first 5,000 rows and calling that the answer.
+  -->
+  @if (model.tooLarge() && !model.folding()) {
+    <p class="control-note">
+      Counting, searching and browsing work across all
+      {{ (model.rowCount() ?? 0).toLocaleString() }} rows. Sums, averages and charts need every
+      matching row read, so they’re capped at {{ model.analyzeLimit.toLocaleString() }} — narrow
+      with a date range or a search term, then total the result.
+    </p>
+  }
+</section>
 
-  <div class="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
-    <!-- Report area -->
-    <main class="order-2 min-w-0 xl:order-1">
+<!--
+  Workspace. Report on top, conversation docked underneath.
+
+  It used to be two columns, which cost the report ~360px of width on every
+  screen — the charts and the detail table, the widest things on the page, were
+  squeezed into the narrow half while the chat sat in acres of its own. Stacking
+  gives the report the full width and pins the composer to the bottom, where it
+  stays put as the report scrolls past above it.
+-->
+<div class="workspace">
+  <main class="report-pane">
+    <div class="report-scroll">
+      @if (model.analysis(); as analysis) {
+        <app-analysis-panel [analysis]="analysis" class="mb-4 block" />
+      }
+
+      <!--
+        No card around the report.
+
+        It used to be wrapped in `.card`, which carries a border, a radius and a
+        shadow but NO padding — so the title and every section sat flush against
+        that border, and the chart cards and the detail table (cards themselves)
+        drew a second border a pixel inside the first. The report is a
+        composition of cards, not a card: it gets a header and lets its own
+        pieces be the surfaces.
+      -->
       @if (model.result(); as result) {
-        <app-dynamic-report [result]="result" />
-      } @else if (model.counting() && model.rowCount() === null) {
-        <div class="card card-lg">
-          <app-spinner label="Reading your dataset…" />
+        <div class="animate-fade">
+          <app-dynamic-report [result]="result" />
         </div>
-      } @else {
-        <div class="card card-lg">
-          <app-empty-state
-            title="Your report will appear here"
-            message="Ask the AI Analyst a question or describe the dashboard you want. It reads a summary of your data and builds a live report — every number computed from D365, never from the model."
-            [icon]="icons.spark"
-          />
+      } @else if (model.counting() && model.rowCount() === null) {
+        <app-skeleton variant="report" />
+      } @else if (!model.analysis()) {
+        <!--
+          The starter. The prompts live where the eye already is and where there
+          is room for them, rather than hidden in the chat column.
+        -->
+        <div class="starter card card-lg">
+          <div class="starter-head">
+            <span class="starter-mark">
+              <app-icon [path]="icons.spark" [size]="26" />
+            </span>
+
+            <div class="starter-copy">
+              <h2 class="starter-title">What would you like to know?</h2>
+              <p class="starter-lede">
+                Ask in plain language. The model designs the report; the app computes every
+                figure from D365, so nothing on the page is generated prose pretending to be a
+                number.
+              </p>
+            </div>
+          </div>
+
+          <!--
+            What the analyst is pointed at, right now.
+
+            The empty state used to be the same four sentences whatever the source, the
+            slice or the row count — so the one screen with room to say what would happen
+            said nothing, and the answer to "why are these buttons disabled?" was in the
+            far corner of the toolbar above.
+          -->
+          <div class="starter-scope">
+            <span class="scope-source">
+              <app-icon [path]="icons.database" [size]="14" />
+              {{ model.activeSource().label }}
+            </span>
+
+            @if (model.activeSource().description; as d) {
+              <span class="scope-desc">{{ d }}</span>
+            }
+
+            <span class="scope-state">
+              @if (model.counting()) {
+                <span class="count-spinner"></span>
+                Counting this slice&hellip;
+              } @else if (model.dataError(); as error) {
+                <span class="text-danger">{{ error }}</span>
+                <button type="button" (click)="model.refreshCount()" class="btn-ghost btn-sm">
+                  Try again
+                </button>
+              } @else if (model.rowCount(); as count) {
+                <strong class="tabular-nums text-content">{{ count.toLocaleString() }}</strong>
+                rows
+                @if (model.cube()) {
+                  <span class="pill pill-ok">
+                    <app-icon [path]="icons.check" [size]="12" />
+                    Totals ready
+                  </span>
+                } @else if (model.tooLarge()) {
+                  <span class="pill pill-warn">Counts only — narrow to total</span>
+                } @else if (model.canAnalyze()) {
+                  <button type="button" (click)="model.analyze()" class="btn-primary btn-sm">
+                    Total these rows
+                  </button>
+                }
+              }
+            </span>
+          </div>
+
+          <div class="stagger starter-chips">
+            @for (s of model.suggestions(); track s) {
+              <button
+                type="button"
+                (click)="model.send(s)"
+                [disabled]="!model.ready()"
+                class="starter-chip"
+              >
+                <span class="starter-chip-icon">
+                  <app-icon [path]="icons.spark" [size]="13" />
+                </span>
+                <span class="flex-1">{{ s }}</span>
+                <span class="starter-chip-go" aria-hidden="true">
+                  <app-icon [path]="icons.chevronDown" [size]="14" />
+                </span>
+              </button>
+            }
+          </div>
+
+          <!-- A disabled control has to say why, next to itself. -->
+          @if (!model.ready()) {
+            <p class="starter-blocked">
+              @if (model.dataError()) {
+                These prompts need the row count, which failed to load — retry above.
+              } @else {
+                Counting the current slice — the prompts unlock as soon as it lands.
+              }
+            </p>
+          }
         </div>
       }
-    </main>
+    </div>
+  </main>
 
-    <!-- Chat -->
-    <aside class="order-1 xl:order-2">
-      <div class="xl:sticky xl:top-24 h-[70vh] xl:h-[calc(100vh-8rem)]">
-        <app-chat-panel
-          [messages]="model.messages()"
-          [streaming]="model.streaming()"
-          [busy]="model.busy()"
-          [error]="model.chatError()"
-          [suggestions]="model.suggestions()"
-          (send)="model.send($event)"
-        />
-      </div>
-    </aside>
-  </div>
+  <!--
+    Chat dock. Fixed height at the bottom of the workspace — it does not grow
+    with the conversation and does not scroll away with the report, so the
+    composer is in the same place on every turn.
+  -->
+  <aside class="chat-dock" [class.chat-dock-collapsed]="chatCollapsed()">
+    <app-chat-panel
+      (collapsedChange)="chatCollapsed.set($event)"
+      [messages]="model.messages()"
+      [streaming]="model.streaming()"
+      [busy]="model.busy()"
+      [error]="model.chatError()"
+      [canExport]="model.canExportDocument()"
+      (send)="model.send($event)"
+      (stop)="model.stop()"
+      (retry)="model.retry()"
+      (exportDoc)="model.exportDocument($event)"
+    />
+  </aside>
 </div>

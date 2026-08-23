@@ -11,7 +11,9 @@
   </app-page-header>
 
   @if (model.loading()) {
-    <app-spinner label="Loading sales orders from D365…" />
+    <div class="card card-lg">
+      <app-skeleton variant="report" />
+    </div>
   } @else if (model.error(); as error) {
     <div class="card">
       <app-empty-state
@@ -77,52 +79,59 @@
       </app-chart-card>
     </section>
 
-    <section class="grid grid-cols-1 gap-4 lg:grid-cols-3">
+    <!--
+      The detail grid gets the full width.
+
+      It used to share a row with the status chart at two thirds, which is the
+      wrong way round: every cell here is `nowrap`, so the table was the one
+      thing on the page that scrolled sideways while a four-bar chart sat in
+      acres of its own. Charts read fine at any width; a record does not.
+    -->
+    <section class="grid grid-cols-1 gap-4">
       <app-chart-card title="Lines by document status" subtitle="Release stage of each line">
         <app-bar-chart [data]="model.linesByStatus()" />
       </app-chart-card>
-      <div class="lg:col-span-2">
-        <!-- Table -->
-        <section class="flex flex-col gap-3">
-          <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div class="relative">
-              <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint">
-                <app-icon [path]="icons.search" [size]="16" />
-              </span>
-              <input
-                type="search"
-                placeholder="Search order, account or customer…"
-                [value]="model.search()"
-                (input)="model.setSearch($any($event.target).value)"
-                class="w-full rounded-lg border border-border-soft bg-surface py-2 pl-9 pr-3 text-sm text-content outline-none transition-colors placeholder:text-faint focus:border-brand-400 sm:w-80"
-              />
-            </div>
-            <div class="flex items-center gap-2 text-sm text-muted">
-              <span class="tabular-nums">{{ model.rangeLabel() }}</span>
-              <button
-                type="button"
-                (click)="model.prevPage()"
-                [disabled]="!model.canPrev()"
-                class="pager-btn"
-                aria-label="Previous page"
-              >
-                <app-icon [path]="icons.prev" [size]="16" />
-              </button>
-              <button
-                type="button"
-                (click)="model.nextPage()"
-                [disabled]="!model.canNext()"
-                class="pager-btn"
-                aria-label="Next page"
-              >
-                <app-icon [path]="icons.next" [size]="16" />
-              </button>
-            </div>
-          </div>
+    </section>
 
-          <app-data-table [columns]="model.columns" [rows]="model.pagedRows()" />
-        </section>
+    <!-- Table -->
+    <section class="flex flex-col gap-3">
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div class="field-wrap sm:w-80">
+          <span class="field-icon">
+            <app-icon [path]="icons.search" [size]="16" />
+          </span>
+          <input
+            type="search"
+            placeholder="Search order, account or customer…"
+            [value]="model.search()"
+            (input)="model.setSearch($any($event.target).value)"
+            class="field field-search"
+          />
+        </div>
+        <div class="flex items-center gap-2 text-sm text-muted">
+          <span class="tabular-nums">{{ model.rangeLabel() }}</span>
+          <button
+            type="button"
+            (click)="model.prevPage()"
+            [disabled]="!model.canPrev()"
+            class="pager-btn"
+            aria-label="Previous page"
+          >
+            <app-icon [path]="icons.prev" [size]="16" />
+          </button>
+          <button
+            type="button"
+            (click)="model.nextPage()"
+            [disabled]="!model.canNext()"
+            class="pager-btn"
+            aria-label="Next page"
+          >
+            <app-icon [path]="icons.next" [size]="16" />
+          </button>
+        </div>
       </div>
+
+      <app-data-table [columns]="model.columns" [rows]="model.pagedRows()" />
     </section>
   }
 </div>

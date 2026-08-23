@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, input, signal } from '@angular/core';
 import { StatusBadgeComponent } from '../status-badge/status-badge';
 import { TableColumn } from '../../models/table-column.model';
 import { BadgeTone } from '../../models/badge.model';
@@ -23,6 +23,23 @@ export class DataTableComponent<T> {
   readonly maxHeight = input<string>();
   /** Alternate row tinting — earns its keep on wide or repetitive rows. */
   readonly zebra = input(false);
+
+  /**
+   * Drop the card chrome. For a table that is already inside a padded sheet,
+   * where its own border would be the second one drawn in the same place.
+   */
+  readonly bare = input(false);
+
+  /**
+   * Whether the scroll container has left the top. Drives the shadow under the
+   * sticky header, so the header separates itself only while rows are actually
+   * passing beneath it — a permanent shadow just looks like a stray border.
+   */
+  protected readonly scrolled = signal(false);
+
+  protected onScroll(event: Event): void {
+    this.scrolled.set((event.target as HTMLElement).scrollTop > 0);
+  }
 
   protected display(row: T, col: TableColumn<T>): string {
     const raw = this.raw(row, col);

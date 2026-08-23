@@ -1,17 +1,17 @@
 <header class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-  <div class="flex flex-col gap-1.5">
+  <div class="flex min-w-0 flex-col gap-2">
     @if (eyebrow(); as e) {
-      <span class="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-accent-500">
-        <span class="h-1 w-1 rounded-full bg-accent-500"></span>
+      <span class="eyebrow">
+        <span class="eyebrow-dot"></span>
         {{ e }}
       </span>
     }
-    <h1 class="text-[1.7rem] font-bold leading-tight tracking-tight text-content">{{ title() }}</h1>
+    <h1 class="page-title">{{ title() }}</h1>
     @if (subtitle(); as s) {
-      <p class="max-w-2xl text-sm text-muted">{{ s }}</p>
+      <p class="max-w-2xl text-sm leading-relaxed text-muted">{{ s }}</p>
     }
   </div>
-  <div class="flex items-center gap-2">
+  <div class="flex shrink-0 flex-wrap items-center gap-2">
     <ng-content />
   </div>
 </header>

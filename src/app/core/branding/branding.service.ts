@@ -11,12 +11,22 @@ export interface Branding {
 
 export const DEFAULT_BRANDING: Branding = {
   appName: 'Reports',
-  primary: '#002559',
+  primary: '#0b3d91',
   accent: '#f24c1a',
   logo: null,
 };
 
 const STORAGE_KEY = 'rd.branding';
+
+/**
+ * The previous default primary. Anyone who has ever loaded the app has this
+ * persisted in localStorage, so without a migration the new default would never
+ * appear — the stored value would keep winning on every boot.
+ *
+ * Only the exact old default is migrated. A colour the user actually chose is
+ * left alone, and the old navy remains available as the "Deep Navy" preset.
+ */
+const LEGACY_DEFAULT_PRIMARY = '#002559';
 
 function normalizeHex(hex: string): string {
   const v = hex.trim().replace(/^#?/, '#');
@@ -109,7 +119,13 @@ export class BrandingService {
   private load(): Branding {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) return { ...DEFAULT_BRANDING, ...(JSON.parse(raw) as Partial<Branding>) };
+      if (raw) {
+        const stored = { ...DEFAULT_BRANDING, ...(JSON.parse(raw) as Partial<Branding>) };
+        if (normalizeHex(stored.primary) === LEGACY_DEFAULT_PRIMARY) {
+          stored.primary = DEFAULT_BRANDING.primary;
+        }
+        return stored;
+      }
     } catch {
       // Corrupt storage — fall back to defaults.
     }

@@ -90,8 +90,8 @@ function hslToHex(h: number, s: number, l: number): string {
  * hue — the identity — untouched.
  *
  * A brand colour is chosen to be read as large type on white; a chart slice is a
- * thin arc read against white AND against the dark surface. The default navy
- * (#002559, lightness 0.17) is a good brand and an unusable slice: it disappears
+ * thin arc read against white AND against the dark surface. A deep navy such as
+ * #002559 (lightness 0.17) is a good brand and an unusable slice: it disappears
  * into the dark canvas. Lightening it via {@link buildScale} is not the fix —
  * mixing toward white strips the chroma too, and a gray slice carries no identity
  * at all (the 400 step measures 0.07 chroma, well under the floor).

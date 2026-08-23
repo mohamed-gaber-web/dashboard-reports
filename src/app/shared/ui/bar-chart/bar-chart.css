@@ -1,3 +1,28 @@
 :host {
   display: block;
 }
+
+/*
+  Bars grow from their origin on first paint rather than appearing at full
+  length. Animated with `transform: scaleX` (compositor-only) instead of `width`,
+  so a chart of twenty bars costs no layout passes.
+
+  `both` holds the 0-width start state during the delay, otherwise every bar
+  flashes at full length for a frame before its turn arrives.
+*/
+.bar-fill {
+  transform-origin: left center;
+  animation: bar-grow 0.65s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.bar-row:nth-child(1) .bar-fill { animation-delay: 0.02s; }
+.bar-row:nth-child(2) .bar-fill { animation-delay: 0.06s; }
+.bar-row:nth-child(3) .bar-fill { animation-delay: 0.1s; }
+.bar-row:nth-child(4) .bar-fill { animation-delay: 0.14s; }
+.bar-row:nth-child(5) .bar-fill { animation-delay: 0.18s; }
+.bar-row:nth-child(6) .bar-fill { animation-delay: 0.22s; }
+.bar-row:nth-child(7) .bar-fill { animation-delay: 0.26s; }
+.bar-row:nth-child(n + 8) .bar-fill { animation-delay: 0.3s; }
+
+.bar-row {
+  animation: fade-in 0.3s ease-out both;
+}

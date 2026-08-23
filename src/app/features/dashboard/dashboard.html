@@ -47,8 +47,8 @@
     </div>
   </section>
 
-  <!-- Vivid KPI row -->
-  <section class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+  <!-- Vivid KPI row. `stagger` lands them in reading order, not all at once. -->
+  <section class="stagger grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
     <app-kpi-card
       label="Report modules"
       [value]="model.moduleCount()"
@@ -75,7 +75,7 @@
   <!-- Module cards -->
   <section class="flex flex-col gap-3">
     <h2 class="text-sm font-semibold text-content">Report modules</h2>
-    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+    <div class="stagger grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
       @for (module of model.modules(); track module.id) {
         <a
           [routerLink]="'/' + module.route"

@@ -46,3 +46,5 @@ __screenshots__/
 # System files
 .DS_Store
 Thumbs.db
+.vercel
+.env*

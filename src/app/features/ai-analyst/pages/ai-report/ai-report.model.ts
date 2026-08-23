@@ -4,8 +4,11 @@ import { filter, forkJoin, map, of, switchMap, tap } from 'rxjs';
 import { environment } from '../../../../../environments/environment';
 import { Cube, MAX_ANALYZE_ROWS } from '../../../../core/aggregation/aggregate-plan.model';
 import { SliceTooLargeError } from '../../../../core/aggregation/aggregation.service';
-import { and } from '../../../../core/http/odata-filter.util';
-import { SALES_SELECT_FIELDS } from '../../../sales-order/models/sales-order.model';
+import { and, SearchField } from '../../../../core/http/odata-filter.util';
+import {
+  SALES_LINE_SELECT_FIELDS,
+  SALES_SELECT_FIELDS,
+} from '../../../sales-order/models/sales-order.model';
 import {
   SHATAT_SEARCH_FIELDS,
   SHATAT_SERIAL_TRANS_SELECT,
@@ -13,14 +16,22 @@ import {
 import { AnalystDataService } from '../../services/analyst-data.service';
 import { ChatApiService } from '../../services/chat-api.service';
 import { DataContextService } from '../../services/data-context.service';
-import { ExportService, ExportTooLargeError } from '../../services/export.service';
+import { BrandingService } from '../../../../core/branding/branding.service';
+import { DocumentContext, ExportService, ExportTooLargeError } from '../../services/export.service';
 import { ReportEngineService, TABLE_DISPLAY_LIMIT } from '../../services/report-engine.service';
 import { SpecCompilerService } from '../../services/spec-compiler.service';
 import { AnalystFilter, AnalystSource } from '../../models/analyst-source.model';
+import { Analysis, DocumentFormat } from '../../models/analysis.model';
 import { ChatMessage } from '../../models/chat-message.model';
-import { ReportResult, ReportSpec } from '../../models/report-spec.model';
+import { DEFAULT_DESIGN, ReportResult, ReportSpec } from '../../models/report-spec.model';
 import { SALES_ORDER_DATE_FIELD, SALES_ORDER_FIELDS } from '../../sales-order-fields';
 import { SHATAT_DATE_FIELD, SHATAT_SERIAL_TRANS_FIELDS } from '../../shatat-serial-trans-fields';
+import {
+  PURCHASE_ORDER_DATE_FIELD,
+  PURCHASE_ORDER_FIELDS,
+  PURCHASE_ORDER_SEARCH_FIELDS,
+  PURCHASE_ORDER_SELECT,
+} from '../../purchase-order-fields';
 
 /**
  * ViewModel for the AI Analyst page.
@@ -45,6 +56,60 @@ import { SHATAT_DATE_FIELD, SHATAT_SERIAL_TRANS_FIELDS } from '../../shatat-seri
  * 3. **Counts, dates and tables never need the fold** — they are native OData and
  *    stay instant at full 11M scale.
  */
+/** D365 rejects a bare string on an enum — the literal has to be type-qualified. */
+const BACKORDER = "Microsoft.Dynamics.DataEntities.SalesStatus'Backorder'";
+
+/**
+ * The Sales Order tab's query descriptor, derived from `environment.salesOrder`.
+ *
+ * A source is either **composite** (Growpath's `GP_SalesHeaderAndLineData`, which
+ * carries the header columns as `SalesTable_*`) or **split** (Shatat, where those
+ * columns live on a separate entity). The analyst issues single-entity queries and
+ * cannot join, so on a split source it sees the LINE half only — and the
+ * `SalesTable_*` fields are withheld from the schema rather than advertised and
+ * then 400'd by D365. `SalesOrderService` still joins them for the report screens;
+ * this narrowing applies to the chat tab alone.
+ */
+const SALES_ORDER_SOURCE = (() => {
+  const cfg = environment.salesOrder;
+  const company = `dataAreaId eq '${cfg.company}'`;
+  const composite = !cfg.headerEntity;
+
+  if (composite) {
+    return {
+      entity: cfg.lineEntity,
+      fields: SALES_ORDER_FIELDS,
+      select: SALES_SELECT_FIELDS,
+      dateField: SALES_ORDER_DATE_FIELD,
+      baseFilter:
+        `${company} and RemainInventPhysical gt 0 ` +
+        `and SalesTable_SalesStatus eq ${BACKORDER} and SalesStatus eq ${BACKORDER}`,
+      searchFields: [
+        { field: 'SalesId', mode: 'prefix' },
+        { field: 'ItemId', mode: 'prefix' },
+        { field: 'CustAccount', mode: 'prefix' },
+        { field: 'SalesTable_SalesName', mode: 'contains' },
+      ] as SearchField[],
+    };
+  }
+
+  return {
+    entity: cfg.lineEntity,
+    fields: SALES_ORDER_FIELDS.filter((f) => !f.key.startsWith('SalesTable_')),
+    select: SALES_LINE_SELECT_FIELDS,
+    // The composite's delivery date is a header column; the line's own requested
+    // ship date is the nearest equivalent the split source can window on.
+    dateField: 'ShippingDateRequested',
+    baseFilter: `${company} and RemainInventPhysical gt 0 and SalesStatus eq ${BACKORDER}`,
+    searchFields: [
+      { field: 'SalesId', mode: 'prefix' },
+      { field: 'ItemId', mode: 'prefix' },
+      { field: 'CustAccount', mode: 'prefix' },
+      { field: 'Name', mode: 'contains' },
+    ] as SearchField[],
+  };
+})();
+
 @Injectable()
 export class AiReportModel {
   private readonly data = inject(AnalystDataService);
@@ -53,41 +118,36 @@ export class AiReportModel {
   private readonly compiler = inject(SpecCompilerService);
   private readonly chat = inject(ChatApiService);
   private readonly exporter = inject(ExportService);
+  private readonly branding = inject(BrandingService);
   private readonly destroyRef = inject(DestroyRef);
 
   readonly sources: AnalystSource[] = [
     {
       id: 'sales-order',
       label: 'Sales Order',
-      fields: SALES_ORDER_FIELDS,
+      description: 'Open backorder lines with remaining physical inventory',
+      fields: SALES_ORDER_SOURCE.fields,
       suggestions: [
         'Summarise the open backorders',
         'Show units remaining by customer',
         'Break down lines by currency as a donut',
         'Which items have the most backorder quantity?',
       ],
-      entity: 'GP_SalesHeaderAndLineData',
-      dataPath: '/data',
-      authConfig: environment.auth,
-      crossCompany: false,
-      baseFilter:
-        `dataAreaId eq '${environment.defaultCompany}' and RemainInventPhysical gt 0 ` +
-        `and SalesTable_SalesStatus eq Microsoft.Dynamics.DataEntities.SalesStatus'Backorder' ` +
-        `and SalesStatus eq Microsoft.Dynamics.DataEntities.SalesStatus'Backorder'`,
+      entity: SALES_ORDER_SOURCE.entity,
+      dataPath: environment.salesOrder.source.dataPath,
+      authConfig: environment.salesOrder.source.auth,
+      crossCompany: environment.salesOrder.source.crossCompany,
+      baseFilter: SALES_ORDER_SOURCE.baseFilter,
       keyField: ['SalesId', 'LineNum'],
-      select: SALES_SELECT_FIELDS,
-      searchFields: [
-        { field: 'SalesId', mode: 'prefix' },
-        { field: 'ItemId', mode: 'prefix' },
-        { field: 'CustAccount', mode: 'prefix' },
-        { field: 'SalesTable_SalesName', mode: 'contains' },
-      ],
-      dateField: SALES_ORDER_DATE_FIELD,
+      select: SALES_ORDER_SOURCE.select,
+      searchFields: SALES_ORDER_SOURCE.searchFields,
+      dateField: SALES_ORDER_SOURCE.dateField,
       currencyField: 'CurrencyCode',
     },
     {
-      id: 'shatat',
-      label: 'Shatat',
+      id: 'transaction',
+      label: 'Transaction',
+      description: 'Serial number transactions by site, warehouse and item',
       fields: SHATAT_SERIAL_TRANS_FIELDS,
       suggestions: [
         'Total quantity and amount by transaction type',
@@ -107,6 +167,30 @@ export class AiReportModel {
       // Shatat has no currency column. The old engine hardcoded `CurrencyCode`
       // and so scanned the whole dataset to find nothing.
       currencyField: undefined,
+    },
+    {
+      id: 'purchase-order',
+      label: 'Purchase Order',
+      description: 'Purchase order headers by vendor, status, site and terms',
+      fields: PURCHASE_ORDER_FIELDS,
+      // A header entity has no amounts, so every suggestion here counts orders
+      // rather than totalling them — see purchase-order-fields.ts.
+      suggestions: [
+        'How many purchase orders per vendor?',
+        'Break down orders by status as a donut',
+        'Which receiving sites have the most orders?',
+        'Count orders by currency and approval status',
+      ],
+      entity: 'PurchaseOrderHeadersV2',
+      dataPath: environment.shatat.dataPath,
+      authConfig: environment.shatat.auth,
+      crossCompany: true,
+      baseFilter: `dataAreaId eq '${environment.shatat.company}'`,
+      keyField: ['PurchaseOrderNumber'],
+      select: PURCHASE_ORDER_SELECT,
+      searchFields: PURCHASE_ORDER_SEARCH_FIELDS,
+      dateField: PURCHASE_ORDER_DATE_FIELD,
+      currencyField: 'CurrencyCode',
     },
   ];
 
@@ -152,12 +236,27 @@ export class AiReportModel {
   readonly chatError = signal<string | null>(null);
   readonly result = signal<ReportResult | null>(null);
 
+  /** The written half of the report. Survives a new question; replaced by a new one. */
+  readonly analysis = signal<Analysis | null>(null);
+
   readonly ready = computed(() => this.rowCount() !== null && !this.dataError());
   readonly hasReport = computed(() => this.result() !== null);
+  readonly hasAnalysis = computed(() => this.analysis() !== null);
+  /** A document needs something to show; a bare heading is not a report. */
+  readonly canExportDocument = computed(() => this.hasReport() || this.hasAnalysis());
   readonly suggestions = computed(() => this.activeSource().suggestions);
 
   private controller?: AbortController;
   private searchDebounce?: ReturnType<typeof setTimeout>;
+  /** Set by the `export_document` tool; acted on once the turn completes. */
+  private pendingExport: DocumentFormat | null = null;
+  /**
+   * The spec behind the report currently on screen, sent back with the next
+   * question so the model can modify what it built instead of rebuilding it
+   * from the memory of its own prose. Cleared when the source changes — a spec
+   * written against Sales Order fields means nothing on Purchase Order.
+   */
+  private lastSpec: ReportSpec | null = null;
 
   constructor() {
     this.destroyRef.onDestroy(() => {
@@ -178,6 +277,8 @@ export class AiReportModel {
     this.busy.set(false);
     this.chatError.set(null);
     this.result.set(null);
+    this.lastSpec = null;
+    this.analysis.set(null);
     this.cube.set(null);
     this.cubes.clear();
     this.rowCount.set(null);
@@ -328,11 +429,20 @@ export class AiReportModel {
             {
               onText: (t) => this.streaming.update((s) => s + t),
               onReport: (spec) => this.renderReport(spec as ReportSpec),
+              onAnalysis: (a) => this.analysis.set(a),
+              // The model asked for a download. Defer to the end of the turn:
+              // a report emitted in the same reply is still rendering, and
+              // exporting now would ship the previous one.
+              onExport: (format) => (this.pendingExport = format),
               onDone: () => {
                 const reply = this.streaming().trim() || '📊 Built a report from your data.';
                 this.messages.update((m) => [...m, { role: 'assistant', content: reply }]);
                 this.streaming.set('');
                 this.busy.set(false);
+
+                const format = this.pendingExport;
+                this.pendingExport = null;
+                if (format) this.exportDocument(format);
               },
               onError: (message) => {
                 this.chatError.set(message);
@@ -341,6 +451,8 @@ export class AiReportModel {
               },
             },
             signal,
+            // What the model is looking at, so "change it" has a subject.
+            this.lastSpec,
           );
         },
         error: () => {
@@ -359,6 +471,8 @@ export class AiReportModel {
    * the table page, and fold if we haven't already.
    */
   private renderReport(spec: ReportSpec): void {
+    // Kept so the next turn can be told what is on screen — see ChatApiService.
+    this.lastSpec = spec;
     const source = this.activeSource();
     const base = this.data.buildFilter(source, this.filter());
     const { filter: specFilter, rejected } = this.compiler.compile(spec.filters, source.fields);
@@ -476,9 +590,84 @@ export class AiReportModel {
       .finally(() => this.exporting.set(false));
   }
 
+  /**
+   * The designed document — narrative analysis, KPIs, charts and the detail page.
+   *
+   * Reachable two ways by design: these methods back the toolbar buttons, and the
+   * model calls the same path when the user asks in chat ("export this as a PDF").
+   */
+  exportDocument(format: DocumentFormat): void {
+    const context = this.documentContext();
+    if (!context) return;
+    if (format === 'html') this.exporter.exportHtml(context);
+    else this.exporter.exportPdf(context);
+  }
+
   exportPdf(): void {
-    const r = this.result();
-    if (r) this.exporter.exportPdf(r);
+    this.exportDocument('pdf');
+  }
+
+  exportHtml(): void {
+    this.exportDocument('html');
+  }
+
+  /**
+   * Assemble what the document needs.
+   *
+   * A report with no analysis still exports (KPIs, charts, table). An analysis
+   * with no report exports too — a written brief is a legitimate document. Only
+   * having neither is refused, which `canExportDocument` already gates in the UI.
+   */
+  private documentContext(): DocumentContext | null {
+    const result = this.result();
+    const analysis = this.analysis();
+    if (!result && !analysis) return null;
+
+    return {
+      result: result ?? this.emptyResult(analysis),
+      analysis,
+      sourceLabel: this.activeSource().label,
+      brandName: this.branding.appName(),
+    };
+  }
+
+  /** A report-shaped shell for an analysis that has no computed report behind it. */
+  private emptyResult(analysis: Analysis | null): ReportResult {
+    return {
+      title: analysis?.headline ?? 'Analysis',
+      design: DEFAULT_DESIGN,
+      rowCount: this.rowCount() ?? 0,
+      kpis: [],
+      charts: [],
+    };
+  }
+
+  // ── Chat controls ────────────────────────────────────────────────────────
+  /** Abandon the in-flight reply but keep what has already streamed. */
+  stop(): void {
+    if (!this.busy()) return;
+    this.controller?.abort();
+    const partial = this.streaming().trim();
+    if (partial) this.messages.update((m) => [...m, { role: 'assistant', content: partial }]);
+    this.streaming.set('');
+    this.busy.set(false);
+    this.pendingExport = null;
+  }
+
+  /**
+   * Ask the last question again.
+   *
+   * The failed or unsatisfying assistant turn is dropped first, so the retry sees
+   * the same history the original did rather than appending to a bad answer.
+   */
+  retry(): void {
+    if (this.busy()) return;
+    const history = [...this.messages()];
+    while (history.length && history[history.length - 1].role === 'assistant') history.pop();
+    const last = history.pop();
+    if (!last) return;
+    this.messages.set(history);
+    this.send(last.content);
   }
 
   readonly exporting = signal(false);

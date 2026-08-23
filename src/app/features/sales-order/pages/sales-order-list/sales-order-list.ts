@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { PageHeaderComponent } from '../../../../shared/ui/page-header/page-header';
 import { DataTableComponent } from '../../../../shared/ui/data-table/data-table';
-import { SpinnerComponent } from '../../../../shared/ui/spinner/spinner';
+import { SkeletonComponent } from '../../../../shared/ui/skeleton/skeleton';
 import { EmptyStateComponent } from '../../../../shared/ui/empty-state/empty-state';
 import { IconComponent } from '../../../../shared/ui/icon/icon';
 import { SalesOrderListModel } from './sales-order-list.model';
@@ -12,7 +12,7 @@ import { SalesOrderListModel } from './sales-order-list.model';
   imports: [
     PageHeaderComponent,
     DataTableComponent,
-    SpinnerComponent,
+    SkeletonComponent,
     EmptyStateComponent,
     IconComponent,
   ],

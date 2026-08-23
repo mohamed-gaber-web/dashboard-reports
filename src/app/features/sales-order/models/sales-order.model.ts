@@ -1,8 +1,15 @@
 import { BadgeTone } from '../../../shared/models/badge.model';
 
 /**
- * One backorder line from the D365 `GP_SalesHeaderAndLineData` entity —
- * an open order line with remaining physical inventory still to fulfil.
+ * One backorder line — an open order line with remaining physical inventory
+ * still to fulfil.
+ *
+ * This shape is the report's contract, NOT any one entity's schema. Growpath
+ * publishes it directly as the composite `GP_SalesHeaderAndLineData`; Shatat
+ * does not publish that entity at all, so there the same shape is assembled by
+ * joining `SalesLineBiEntities` to `SalesTableBiEntities` on
+ * `(dataAreaId, SalesId)` — the `SalesTable_*` fields are the header half.
+ * Every screen binds to this, so the source swap is invisible above the service.
  */
 export interface SalesBackorderRecord {
   dataAreaId: string;
@@ -25,7 +32,7 @@ export interface SalesBackorderRecord {
   CurrencyCode: string;
 }
 
-/** Fields requested from D365 — all proven to exist on the entity. */
+/** Fields on the composite entity — all proven to exist on `GP_SalesHeaderAndLineData`. */
 export const SALES_SELECT_FIELDS = [
   'dataAreaId',
   'SalesId',
@@ -46,6 +53,58 @@ export const SALES_SELECT_FIELDS = [
   'LineAmount',
   'CurrencyCode',
 ].join(',');
+
+/** The header half of a split source, before it is folded into a {@link SalesBackorderRecord}. */
+export interface SalesHeaderRecord {
+  dataAreaId: string;
+  SalesId: string;
+  SalesName?: string;
+  InvoiceAccount?: string;
+  SalesStatus?: string;
+  DocumentStatus?: string;
+  DeliveryDate?: string;
+}
+
+/**
+ * `$select` for the LINE half of a split source (`SalesLineBiEntities`).
+ *
+ * Deliberately the raw SalesLine column names — they match
+ * {@link SalesBackorderRecord} one-for-one, which is why this BI entity was
+ * chosen over the friendlier `SalesOrderLines` (whose columns are all renamed,
+ * e.g. `SalesOrderNumber`/`OrderedSalesQuantity`, and which drops
+ * `RemainInventPhysical` entirely — the report's central measure).
+ */
+export const SALES_LINE_SELECT_FIELDS = [
+  'dataAreaId',
+  'SalesId',
+  'LineNum',
+  'ItemId',
+  'Name',
+  'CustAccount',
+  'SalesType',
+  'SalesStatus',
+  'ShippingDateRequested',
+  'QtyOrdered',
+  'RemainInventPhysical',
+  'LineAmount',
+  'CurrencyCode',
+].join(',');
+
+/** `$select` for the HEADER half of a split source (`SalesTableBiEntities`). */
+export const SALES_HEADER_SELECT_FIELDS = [
+  'dataAreaId',
+  'SalesId',
+  'SalesName',
+  'InvoiceAccount',
+  'SalesStatus',
+  'DocumentStatus',
+  'DeliveryDate',
+].join(',');
+
+/** Join key — orders are only unique per legal entity, so the company is part of it. */
+export function salesOrderKey(r: { dataAreaId: string; SalesId: string }): string {
+  return `${r.dataAreaId}|${r.SalesId}`;
+}
 
 /** Map a D365 document status to a badge colour tone. */
 export function documentStatusTone(status: string | undefined): BadgeTone {

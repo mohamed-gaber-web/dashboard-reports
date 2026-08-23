@@ -2,35 +2,17 @@
  * Local dev server for the serverless API functions.
  *
  * In production, `/api/chat` is a Vercel serverless function. In dev, the Angular
- * dev server can't hold the LLM secret, so it proxies `/api/chat` here
+ * dev server can't hold the Anthropic key, so it proxies `/api/chat` here
  * (see proxy.conf.js), and this tiny Node server runs the same handler.
  *
  * Run alongside `npm start`:  npm run dev:api
- * Requires OPENROUTER_API_KEY (loaded from .env below or the shell).
+ * Requires ANTHROPIC_API_KEY (loaded from .env or the shell).
  */
 
 const http = require('http');
-const fs = require('fs');
-const path = require('path');
 
-// Minimal .env loader (no dependency) — loads KEY=VALUE lines from project-root .env.
-(function loadDotenv() {
-  try {
-    const file = path.join(__dirname, '..', '.env');
-    if (!fs.existsSync(file)) return;
-    for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith('#')) continue;
-      const eq = trimmed.indexOf('=');
-      if (eq === -1) continue;
-      const key = trimmed.slice(0, eq).trim();
-      const value = trimmed.slice(eq + 1).trim().replace(/^["']|["']$/g, '');
-      if (!(key in process.env)) process.env[key] = value;
-    }
-  } catch {
-    // Ignore — env can also be provided by the shell.
-  }
-})();
+// Load .env (shared loader — also used by proxy.conf.js).
+require('../scripts/load-env.js')();
 
 const chatHandler = require('../api/chat.js');
 const tokenHandler = require('../api/token.js');
@@ -52,7 +34,7 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, () => {
-  const ai = process.env.OPENROUTER_API_KEY ? 'AI ✓' : 'AI ✗ (OPENROUTER_API_KEY)';
+  const ai = process.env.ANTHROPIC_API_KEY ? 'AI ✓' : 'AI ✗ (ANTHROPIC_API_KEY)';
   const az = process.env.AZURE_CLIENT_SECRET ? 'D365 ✓' : 'D365 ✗ (AZURE_CLIENT_SECRET)';
   const sh = process.env.AZURE_CLIENT_SECRET_SHATAT
     ? 'Shatat ✓'

@@ -1,7 +1,7 @@
 @if (rows().length) {
   <ul class="flex flex-col gap-3">
     @for (row of rows(); track row.label) {
-      <li class="group flex flex-col gap-1.5" [title]="row.label + ' — ' + row.display">
+      <li class="bar-row group flex flex-col gap-1.5" [title]="row.label + ' — ' + row.display">
         <div class="flex items-baseline justify-between gap-3 text-sm">
           <span class="truncate text-muted">{{ row.label }}</span>
           <span class="flex shrink-0 items-baseline gap-2">
@@ -14,7 +14,7 @@
         <!-- Track: the unfilled remainder, so every bar reads against the same span. -->
         <div class="h-2 rounded-full bg-surface-muted">
           <div
-            class="h-full rounded-r-[4px] transition-[width] duration-500 ease-out group-hover:brightness-110"
+            class="bar-fill h-full rounded-r-[4px] transition-[width,filter] duration-500 ease-out group-hover:brightness-110"
             [style.width.%]="row.widthPct"
             [style.backgroundColor]="row.color"
           ></div>

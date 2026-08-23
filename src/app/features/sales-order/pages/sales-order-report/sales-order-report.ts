@@ -5,7 +5,7 @@ import { ChartCardComponent } from '../../../../shared/ui/chart-card/chart-card'
 import { BarChartComponent } from '../../../../shared/ui/bar-chart/bar-chart';
 import { DonutChartComponent } from '../../../../shared/ui/donut-chart/donut-chart';
 import { DataTableComponent } from '../../../../shared/ui/data-table/data-table';
-import { SpinnerComponent } from '../../../../shared/ui/spinner/spinner';
+import { SkeletonComponent } from '../../../../shared/ui/skeleton/skeleton';
 import { EmptyStateComponent } from '../../../../shared/ui/empty-state/empty-state';
 import { IconComponent } from '../../../../shared/ui/icon/icon';
 import { SalesOrderReportModel } from './sales-order-report.model';
@@ -20,7 +20,7 @@ import { SalesOrderReportModel } from './sales-order-report.model';
     BarChartComponent,
     DonutChartComponent,
     DataTableComponent,
-    SpinnerComponent,
+    SkeletonComponent,
     EmptyStateComponent,
     IconComponent,
   ],

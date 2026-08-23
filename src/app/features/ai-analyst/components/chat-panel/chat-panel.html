@@ -1,72 +1,159 @@
-<div class="card card-lg flex h-full flex-col overflow-hidden">
-  <header class="flex items-center gap-2.5 border-b border-border-soft px-4 py-3">
-    <span
-      class="grid h-8 w-8 place-items-center rounded-lg text-white"
-      style="background: linear-gradient(135deg, var(--color-brand-500), var(--color-accent-500))"
-    >
-      <app-icon [path]="icons.sparkle" [size]="16" />
+<div class="chat card card-lg" [class.chat-collapsed]="collapsed()">
+  <header class="chat-header">
+    <span class="chat-avatar" aria-hidden="true">
+      <app-icon [path]="icons.sparkle" [size]="13" />
     </span>
-    <div class="flex flex-col leading-tight">
-      <span class="text-sm font-semibold text-content">AI Analyst</span>
-      <span class="text-xs text-faint">Ask about your data or build a report</span>
+    <div class="min-w-0 flex-1">
+      <span class="chat-title">Conversation</span>
+      @if (messages().length) {
+        <span class="chat-count">{{ messages().length }} messages</span>
+      }
     </div>
+    @if (busy()) {
+      <button type="button" (click)="stop.emit()" class="btn-ghost btn-sm">
+        <app-icon [path]="icons.stop" [size]="12" />
+        Stop
+      </button>
+    }
+
+    <!--
+      Collapse to the composer. The dock stays exactly where it is; only the
+      history folds away, so a report can have the height while the place you
+      type never moves.
+    -->
+    <button
+      type="button"
+      (click)="toggleCollapsed()"
+      class="chat-collapse"
+      [attr.aria-expanded]="!collapsed()"
+      [attr.aria-label]="collapsed() ? 'Show the conversation' : 'Collapse the conversation'"
+    >
+      <app-icon [path]="icons.chevron" [size]="15" />
+    </button>
   </header>
 
   <!-- Messages -->
-  <div class="flex-1 space-y-3 overflow-y-auto px-4 py-4">
+  @if (!collapsed()) {
+  <div #scroller class="chat-scroll">
+    <!--
+      Starter prompts live in the report pane, where the eye already is and where
+      there is room for them. Repeating them here would be noise, so the empty
+      chat just says what it is for.
+    -->
     @if (!messages().length && !busy()) {
-      <div class="flex flex-col gap-3 py-4">
-        <p class="text-sm text-muted">Try one of these to get started:</p>
-        <div class="flex flex-col gap-2">
-          @for (s of suggestions(); track s) {
-            <button type="button" (click)="pick(s)" class="suggestion">{{ s }}</button>
-          }
-        </div>
+      <div class="chat-empty">
+        <span class="chat-empty-mark" aria-hidden="true">
+          <app-icon [path]="icons.sparkle" [size]="18" />
+        </span>
+        <span class="text-sm font-medium text-content">Ask me about this data</span>
+        <p class="text-xs leading-relaxed text-faint">
+          Questions, breakdowns, comparisons — or ask for a written analysis and
+          I&rsquo;ll build a document you can export.
+        </p>
       </div>
     }
 
     @for (m of messages(); track $index) {
-      <div class="flex" [class.justify-end]="m.role === 'user'">
-        <div
-          class="max-w-[85%] whitespace-pre-wrap rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed"
-          [class]="
-            m.role === 'user'
-              ? 'bg-brand-600 text-white'
-              : 'bg-surface-muted text-content'
-          "
-        >
-          {{ m.content }}
+      @if (m.role === 'user') {
+        <div class="msg-row msg-row-user">
+          <div class="bubble-user">{{ m.content }}</div>
         </div>
-      </div>
+      } @else {
+        <div class="msg-row group">
+          <span class="chat-avatar" aria-hidden="true">
+            <app-icon [path]="icons.sparkle" [size]="13" />
+          </span>
+
+          <div class="min-w-0 flex-1">
+            <!-- Rendered Markdown. Escaped at source, sanitised again by Angular. -->
+            <div class="prose-chat" [innerHTML]="renderBody(m.content)"></div>
+
+            <!-- Per-message actions. Always reachable via keyboard, revealed on hover. -->
+            <div class="msg-actions">
+              <button
+                type="button"
+                (click)="copy(m.content, $index)"
+                class="msg-action"
+                [attr.aria-label]="'Copy this reply'"
+              >
+                @if (copiedIndex() === $index) {
+                  <app-icon [path]="icons.check" [size]="12" />
+                  Copied
+                } @else {
+                  <app-icon [path]="icons.copy" [size]="12" />
+                  Copy
+                }
+              </button>
+
+              @if ($index === messages().length - 1 && !busy()) {
+                <button type="button" (click)="retry.emit()" class="msg-action" aria-label="Ask again">
+                  <app-icon [path]="icons.retry" [size]="12" />
+                  Retry
+                </button>
+              }
+
+              @if (canExport()) {
+                <button
+                  type="button"
+                  (click)="exportDoc.emit('pdf')"
+                  class="msg-action"
+                  aria-label="Export this analysis as PDF"
+                >
+                  <app-icon [path]="icons.pdf" [size]="12" />
+                  PDF
+                </button>
+                <button
+                  type="button"
+                  (click)="exportDoc.emit('html')"
+                  class="msg-action"
+                  aria-label="Export this analysis as HTML"
+                >
+                  <app-icon [path]="icons.html" [size]="12" />
+                  HTML
+                </button>
+              }
+            </div>
+          </div>
+        </div>
+      }
     }
 
     @if (busy()) {
-      <div class="flex justify-start">
-        <div class="max-w-[85%] whitespace-pre-wrap rounded-2xl bg-surface-muted px-3.5 py-2.5 text-sm leading-relaxed text-content">
+      <div class="msg-row">
+        <span class="chat-avatar chat-avatar-busy" aria-hidden="true">
+          <app-icon [path]="icons.sparkle" [size]="13" />
+        </span>
+        <div class="min-w-0 flex-1" aria-live="polite">
           @if (streaming()) {
-            {{ streaming() }}<span class="cursor">▍</span>
+            <div class="prose-chat" [innerHTML]="renderBody(streaming())"></div>
+            <span class="cursor">&#9613;</span>
           } @else {
-            <span class="dots"><span></span><span></span><span></span></span>
+            <div class="thinking">
+              <span class="dots"><span></span><span></span><span></span></span>
+              <span class="thinking-label">Reading your data&hellip;</span>
+            </div>
           }
         </div>
       </div>
     }
 
     @if (error(); as e) {
-      <div class="rounded-xl bg-red-50 px-3.5 py-2.5 text-sm text-red-700 dark:bg-red-500/15 dark:text-red-300">
-        {{ e }}
+      <div class="chat-error" role="alert">
+        <app-icon [path]="icons.alert" [size]="15" />
+        <span>{{ e }}</span>
       </div>
     }
   </div>
+  }
 
   <!-- Composer -->
-  <div class="border-t border-border-soft p-3">
-    <div class="flex items-end gap-2">
+  <div class="composer-dock">
+    <div class="composer-shell">
       <textarea
         rows="1"
-        placeholder="Ask a question or describe a report…"
+        placeholder="Ask about this data&hellip;"
         [value]="draft()"
-        (input)="draft.set($any($event.target).value)"
+        (input)="onInput($event)"
         (keydown)="onKeydown($event)"
         class="composer"
       ></textarea>
@@ -74,12 +161,12 @@
         type="button"
         (click)="submit()"
         [disabled]="busy() || !draft().trim()"
-        class="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-white transition-opacity disabled:opacity-40"
-        style="background: linear-gradient(135deg, var(--color-brand-500), var(--color-brand-600))"
+        class="send-btn"
         aria-label="Send"
       >
-        <app-icon [path]="icons.send" [size]="18" />
+        <app-icon [path]="icons.send" [size]="17" />
       </button>
     </div>
+    <p class="composer-hint">Enter to send &middot; Shift+Enter for a new line</p>
   </div>
 </div>

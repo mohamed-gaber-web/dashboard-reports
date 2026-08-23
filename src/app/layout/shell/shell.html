@@ -1,26 +1,50 @@
-<div class="flex min-h-screen">
+<!--
+  App frame, not a document.
+
+  The frame is exactly one viewport tall (`h-dvh`, so a mobile URL bar cannot
+  push the composer off screen) and never scrolls itself; the content column
+  scrolls inside it. That is what lets a workspace screen — the AI Analyst —
+  pin its control bar and its conversation dock while only the report moves.
+
+  With `min-h-screen` here and no `min-h-0` on the column below, every child's
+  min-height resolved to `auto`: the workspace grew past the viewport instead of
+  scrolling internally, so the docked chat and the filters scrolled off the
+  bottom of the page. Ordinary document pages are unaffected — they simply
+  scroll in the wrapper below.
+-->
+<div class="flex h-dvh overflow-hidden">
   <!-- Desktop sidebar -->
   <aside class="hidden shrink-0 lg:block">
-    <div class="sticky top-0 h-screen">
+    <div class="h-full">
       <app-sidebar />
     </div>
   </aside>
 
   <!-- Mobile drawer -->
   @if (model.drawerOpen()) {
-    <div class="fixed inset-0 z-40 lg:hidden">
-      <div class="absolute inset-0 bg-black/40" (click)="model.closeDrawer()"></div>
-      <div class="absolute inset-y-0 left-0 shadow-xl">
+    <div class="fixed inset-0 z-50 lg:hidden">
+      <div class="drawer-scrim" (click)="model.closeDrawer()"></div>
+      <div class="drawer-panel">
         <app-sidebar (navigate)="model.closeDrawer()" />
       </div>
     </div>
   }
 
   <!-- Main column -->
-  <div class="flex min-w-0 flex-1 flex-col">
+  <div class="flex min-h-0 min-w-0 flex-1 flex-col">
     <app-topbar (menu)="model.openDrawer()" />
-    <main class="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
-      <router-outlet />
-    </main>
+
+    <!--
+      The scroller is full-width so the scrollbar rides the window edge; the
+      page itself stays centred and capped inside it. `min-h-full` gives the
+      inner column a definite height, which is what a workspace screen needs to
+      claim the remaining space with `flex-1 min-h-0` instead of guessing at a
+      `calc(100vh - …)`.
+    -->
+    <div class="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+      <main class="mx-auto flex min-h-full w-full max-w-7xl flex-col px-4 py-6 sm:px-6 sm:py-8">
+        <router-outlet />
+      </main>
+    </div>
   </div>
 </div>

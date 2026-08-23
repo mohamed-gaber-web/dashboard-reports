@@ -15,5 +15,10 @@
       "source": "/((?!api/|data/|shatat-data/).*)",
       "destination": "/index.html"
     }
-  ]
+  ],
+  "functions": {
+    "api/chat.js": {
+      "maxDuration": 60
+    }
+  }
 }

@@ -1,35 +1,33 @@
-<div class="card card-lg overflow-hidden">
-  <div class="overflow-auto" [style.maxHeight]="maxHeight()">
-    <table class="w-full border-collapse text-sm">
-      <thead class="sticky top-0 z-10">
-        <tr class="bg-surface-muted">
+<div class="overflow-hidden" [class.card]="!bare()" [class.card-lg]="!bare()" [class.tbl-bare]="bare()">
+  <div
+    class="tbl-scroll overflow-auto"
+    [class.is-scrolled]="scrolled()"
+    [style.maxHeight]="maxHeight()"
+    (scroll)="onScroll($event)"
+  >
+    <table class="tbl" [class.zebra]="zebra()">
+      <thead>
+        <tr>
           @for (col of columns(); track col.key) {
-            <th
-              class="whitespace-nowrap border-b border-border-soft px-4 py-3 text-xs font-semibold uppercase tracking-wider text-faint"
-              [class]="alignClass(col)"
-            >
-              {{ col.header }}
-            </th>
+            <th [class]="alignClass(col)">{{ col.header }}</th>
           }
         </tr>
       </thead>
-      <tbody [class.zebra]="zebra()">
+      <tbody>
         @for (row of rows(); track $index) {
-          <tr
-            class="border-t border-border-soft/70 transition-colors hover:bg-brand-50/60 dark:hover:bg-brand-500/10"
-          >
+          <tr>
             @for (col of columns(); track col.key) {
-              <td class="whitespace-nowrap px-4 py-2.5 text-content" [class]="alignClass(col)">
+              <td [class]="alignClass(col)">
                 @if (col.kind === 'badge') {
                   <app-status-badge [label]="display(row, col)" [tone]="tone(row, col)" />
                 } @else {
-                  <span class="tabular-nums">{{ display(row, col) }}</span>
+                  <span>{{ display(row, col) }}</span>
                 }
               </td>
             }
           </tr>
         } @empty {
-          <tr>
+          <tr class="empty-row">
             <td [attr.colspan]="columns().length" class="px-4 py-12 text-center text-sm text-faint">
               {{ emptyMessage() }}
             </td>

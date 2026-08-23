@@ -3,9 +3,19 @@
 }
 
 /*
- * Zebra tinting is a background on the row, so the hover state (a Tailwind
- * utility on the <tr>) has to out-specify it — hence :not(:hover).
+ * The empty row must not pick up the row hover/zebra treatment — it is a
+ * message, not a record.
  */
-.zebra tr:nth-child(even):not(:hover) {
-  background-color: color-mix(in srgb, var(--surface-muted) 45%, transparent);
+.tbl tbody tr.empty-row:hover {
+  background-color: transparent;
+  box-shadow: none;
+}
+
+/*
+ * Bare: no surface of its own. It keeps a top hairline so the header row still
+ * has an edge to sit against inside the sheet that frames it.
+ */
+.tbl-bare {
+  border-top: 1px solid var(--border-soft);
+  border-radius: 0;
 }

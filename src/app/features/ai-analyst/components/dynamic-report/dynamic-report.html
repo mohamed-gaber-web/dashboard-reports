@@ -1,19 +1,32 @@
 <!--
-  Container queries, not viewport ones: this report renders inside a column that
-  is ~360px narrower than the page whenever the chat panel is docked beside it.
-  Breaking on the viewport is how the donut ended up squeezed into a half-width
-  card on a "large" screen.
+  The report is ONE sheet, not a scatter of cards.
+
+  It used to render as bare sections sitting straight on the page canvas: no
+  padding of its own, a 22px title over a row of gradient tiles with 34px
+  numbers, then chart cards and a table that each drew their own border. Loud,
+  unpadded, and structurally three unrelated things.
+
+  It is now a padded surface with a title bar and hairline-separated blocks —
+  stats, charts, detail — and everything inside it is plain, so no border is
+  ever drawn twice in the same place. Type is one step quieter throughout:
+  charts are the content, text is the caption.
+
+  Container queries, not viewport ones: the columns break on this sheet's own
+  width, which is what actually constrains the charts.
 -->
-<div class="@container flex flex-col gap-6">
-  <div class="flex flex-col gap-1">
-    <h2 class="text-xl font-semibold tracking-tight text-content">{{ result().title }}</h2>
-    <p class="text-sm text-muted">
+<div class="@container report-sheet" [class.compact]="compact()">
+  <header class="report-header">
+    <div class="report-heading">
+      <h2 class="report-title">{{ result().title }}</h2>
       @if (result().description; as d) {
-        {{ d }} ·
+        <p class="report-desc">{{ d }}</p>
       }
+    </div>
+
+    <span class="report-rows">
       <span class="tabular-nums">{{ result().rowCount.toLocaleString() }}</span> rows
-    </p>
-  </div>
+    </span>
+  </header>
 
   <!--
     Anything the LLM asked for that we refused to compute — an unknown field, an
@@ -21,11 +34,9 @@
     that quietly answers half the question is worse than one that says so.
   -->
   @if (result().omitted; as omitted) {
-    <div
-      class="rounded-xl border border-amber-300/60 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200"
-    >
+    <div class="report-block report-omitted">
       <p class="font-medium">Some of this request couldn’t be computed</p>
-      <ul class="mt-1.5 list-disc pl-5 leading-relaxed">
+      <ul class="mt-1 list-disc pl-5 leading-relaxed">
         @for (reason of omitted; track $index) {
           <li>{{ reason }}</li>
         }
@@ -33,18 +44,33 @@
     </div>
   }
 
+  <!--
+    Headline figures as stats, not tiles.
+
+    Four gradient tiles in four palette hues put the loudest thing on the page
+    at the top, where the least important thing is — the totals restate what the
+    charts below already show. A stat is a label, a number and a hairline of the
+    colour that keys it to its chart.
+  -->
   @if (result().kpis.length) {
-    <section class="grid gap-4" [class]="kpiCols()">
+    <section class="report-block stat-row" [class]="statCols()">
       @for (kpi of result().kpis; track $index) {
-        <app-kpi-card [label]="kpi.label" [value]="kpi.value" [accent]="accent($index)" />
+        <div class="stat" [style.borderInlineStartColor]="accent($index)">
+          <span class="stat-label">{{ kpi.label }}</span>
+          <span class="stat-value">{{ kpi.value }}</span>
+        </div>
       }
     </section>
   }
 
-  @if (result().charts.length; as chartCount) {
-    <section class="grid gap-4" [class]="chartCols()">
+  @if (result().charts.length) {
+    <section class="report-block chart-grid" [class]="chartCols()">
       @for (chart of result().charts; track $index) {
-        <app-chart-card [title]="chart.title" [subtitle]="chartSubtitle(chart)">
+        <app-chart-card
+          variant="plain"
+          [title]="chart.title"
+          [subtitle]="chartSubtitle(chart)"
+        >
           @if (chart.type === 'donut') {
             <app-donut-chart [data]="chart.data" />
           } @else {
@@ -56,32 +82,33 @@
   }
 
   @if (result().table; as table) {
-    <section class="flex flex-col gap-2.5">
-      <header class="flex flex-wrap items-baseline justify-between gap-2">
-        <h3 class="text-sm font-semibold text-content">Detail</h3>
+    <section class="report-block detail">
+      <header class="detail-head">
+        <h3 class="section-title">Detail</h3>
         <!-- The table is a page, not the answer. Say which, before it is read. -->
         @if (table.total > table.displayRows.length) {
-          <p class="text-xs text-muted">
+          <p class="detail-note">
             First <span class="tabular-nums">{{ table.displayRows.length }}</span> of
             <span class="tabular-nums">{{ table.total.toLocaleString() }}</span> matching rows —
             export for all of them.
           </p>
         } @else {
-          <p class="text-xs text-muted">
+          <p class="detail-note">
             <span class="tabular-nums">{{ table.total.toLocaleString() }}</span> rows
           </p>
         }
       </header>
 
       <!--
-        The detail is capped at a page, but a page of 100 rows still pushes the
-        charts off screen. Scroll it in place, under a header that stays put.
+        Capped and scrolled in place, under a sticky header: a page of 100 rows
+        would otherwise push every chart off the screen.
       -->
       <app-data-table
         [columns]="table.columns"
         [rows]="table.displayRows"
-        maxHeight="26rem"
+        [maxHeight]="tableMaxHeight()"
         [zebra]="true"
+        [bare]="true"
       />
     </section>
   }
