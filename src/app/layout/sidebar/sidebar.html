@@ -21,6 +21,16 @@
   <a routerLink="/ai/analyst" routerLinkActive="is-active" (click)="navigate.emit()" class="nav-link">
     <app-icon [path]="aiIcon" [size]="18" />
     <span class="flex-1">AI Analyst</span>
+  </a>
+
+  <a
+    routerLink="/ai/chat-reports"
+    routerLinkActive="is-active"
+    (click)="navigate.emit()"
+    class="nav-link"
+  >
+    <app-icon [path]="chatReportIcon" [size]="18" />
+    <span class="flex-1">Chat Reports</span>
     <span class="nav-badge">New</span>
   </a>
 

@@ -14,4 +14,17 @@ export interface TableColumn<T> {
   format?: (value: T[keyof T], row: T) => string;
   /** For `badge` columns: map the value/row to a colour tone. */
   tone?: (value: T[keyof T], row: T) => BadgeTone;
+  /**
+   * Let the user sort by this column. Requires `sortable` on the table too —
+   * the table-level input turns the feature on, this opts each column in.
+   *
+   * Off by default so no existing table changes behaviour.
+   */
+  sortable?: boolean;
+  /**
+   * What to sort by, when it differs from the raw value — a date column whose
+   * raw value is a display string, or a status that has a rank rather than an
+   * alphabet. Defaults to the raw value.
+   */
+  sortValue?: (value: T[keyof T], row: T) => string | number;
 }

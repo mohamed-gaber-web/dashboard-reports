@@ -1,4 +1,5 @@
 import { Injectable } from '@angular/core';
+import { AiProviderId } from '../../../core/ai/ai-provider.service';
 import { Analysis, DocumentFormat } from '../models/analysis.model';
 import { ChatMessage, ChatStreamEvent } from '../models/chat-message.model';
 import { DataContext } from './data-context.service';
@@ -12,38 +13,56 @@ interface StreamHandlers {
   onError: (message: string) => void;
 }
 
+/** Everything the endpoint needs beyond the conversation itself. */
+interface StreamOptions {
+  /**
+   * Which model answers. A NAME from a closed list — never a key. The backend
+   * holds every key and re-validates this against its own registry, so the worst
+   * a tampered value can do is fall back to the server's default provider.
+   */
+  provider: AiProviderId;
+  /**
+   * The spec of the report currently on screen, when there is one. Without it
+   * the model is blind to its own output — the conversation carries prose only,
+   * so "make that chart a donut" or "make it compact" had nothing to modify and
+   * the model had to guess the whole report again from memory of what it said.
+   * It travels with the MESSAGES, deliberately, not in the system prompt: the
+   * system block is prompt-cached and identical across turns, and threading a
+   * value that changes every turn through it would invalidate that cache on
+   * every reply.
+   */
+  currentReport?: unknown;
+  signal?: AbortSignal;
+}
+
 /**
- * Talks to the `/api/chat` serverless endpoint (which holds the Anthropic key)
+ * Talks to the `/api/chat` serverless endpoint (which holds the model API keys)
  * and dispatches the Server-Sent Events it streams back. The browser never sees
- * the API key.
+ * an API key.
  */
 @Injectable({ providedIn: 'root' })
 export class ChatApiService {
   /**
    * Send the conversation + data context; stream events to the handlers.
    *
-   * `currentReport` is the spec of the report currently on screen, when there is
-   * one. Without it the model is blind to its own output — the conversation
-   * carries prose only, so "make that chart a donut" or "make it compact" had
-   * nothing to modify and the model had to guess the whole report again from
-   * memory of what it said. It travels with the MESSAGES, deliberately, not in
-   * the system prompt: the system block is prompt-cached and identical across
-   * turns, and threading a value that changes every turn through it would
-   * invalidate that cache on every reply.
+   * The options were positional (`signal`, then `currentReport`) and grew a
+   * third that no caller could pass without also passing the two before it, so
+   * they are one object now — see {@link StreamOptions} for what each does.
    */
   async stream(
     messages: ChatMessage[],
     dataContext: DataContext,
     handlers: StreamHandlers,
-    signal?: AbortSignal,
-    currentReport?: unknown,
+    options: StreamOptions,
   ): Promise<void> {
+    const { provider, currentReport, signal } = options;
+
     let response: Response;
     try {
       response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages, dataContext, currentReport }),
+        body: JSON.stringify({ messages, dataContext, currentReport, provider }),
         signal,
       });
     } catch {

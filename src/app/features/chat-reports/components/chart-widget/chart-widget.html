@@ -1,0 +1,17 @@
+<app-chart-card [title]="spec().title || 'Chart'" [subtitle]="subtitle()" [variant]="variant()">
+  @switch (chartType()) {
+    @case ('line') {
+      <app-line-chart [labels]="spec().labels" [series]="series()" [format]="format" />
+    }
+    @case ('pie') {
+      <app-donut-chart [data]="slices()" variant="pie" centerLabel="Total" [format]="compactFormat" />
+    }
+    @case ('doughnut') {
+      <app-donut-chart [data]="slices()" variant="donut" centerLabel="Total" [format]="compactFormat" />
+    }
+    @default {
+      <!-- 'bar' — and the fallback for any type the parser had to coerce. -->
+      <app-column-chart [labels]="spec().labels" [series]="series()" [format]="format" />
+    }
+  }
+</app-chart-card>

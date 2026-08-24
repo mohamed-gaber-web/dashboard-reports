@@ -1,0 +1,121 @@
+@if (plotted().length && labels().length) {
+  <div class="line-chart">
+    @if (showLegend()) {
+      <ul class="lc-legend" (mouseleave)="active.set(null)">
+        @for (item of legend(); track item.label; let i = $index) {
+          <li class="lc-legend-item" [style.opacity]="opacity(i)" (mouseenter)="active.set(i)">
+            <span class="lc-key" [style.backgroundColor]="item.color"></span>
+            <span class="truncate">{{ item.label }}</span>
+          </li>
+        }
+      </ul>
+    }
+
+    <div class="lc-body">
+      <div class="lc-axis" aria-hidden="true">
+        @for (tick of ticks(); track $index) {
+          <span class="lc-axis-tick" [style.bottom.%]="tick.bottomPct">{{ tick.label }}</span>
+        }
+      </div>
+
+      <div class="lc-plot-wrap">
+        <div class="lc-grid" aria-hidden="true">
+          @for (tick of ticks(); track $index) {
+            <span class="lc-gridline" [style.bottom.%]="tick.bottomPct"></span>
+          }
+        </div>
+
+        <!--
+          Geometry only. preserveAspectRatio="none" lets it stretch to the card's
+          width; non-scaling-stroke keeps the line 2px through that stretch.
+        -->
+        <svg class="lc-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+          @for (s of plotted(); track s.label) {
+            <g [style.opacity]="opacity(s.index)">
+              @if (s.area) {
+                <path [attr.d]="s.area" [attr.fill]="s.color" class="lc-area" />
+              }
+              <polyline
+                [attr.points]="s.polyline"
+                fill="none"
+                [attr.stroke]="s.color"
+                stroke-width="2"
+                stroke-linejoin="round"
+                stroke-linecap="round"
+                vector-effect="non-scaling-stroke"
+              />
+            </g>
+          }
+        </svg>
+
+        <!--
+          Markers and labels as HTML, so they stay round and crisp under the
+          non-uniform scale the SVG above is drawn in.
+        -->
+        <div class="lc-overlay" (mouseleave)="active.set(null)">
+          @for (s of plotted(); track s.label) {
+            <div class="lc-series-overlay" [style.opacity]="opacity(s.index)">
+              @if (showMarkers()) {
+                @for (p of s.points; track p.label) {
+                  <span
+                    class="lc-dot"
+                    [style.left.%]="p.leftPct"
+                    [style.bottom.%]="p.bottomPct"
+                    [style.backgroundColor]="s.color"
+                    [title]="s.label + ' · ' + p.label + ' — ' + p.display"
+                    (mouseenter)="active.set(s.index)"
+                  ></span>
+                }
+              }
+              @if (showEndLabels() && s.end) {
+                <span
+                  class="lc-end-label"
+                  [style.left.%]="s.end.leftPct"
+                  [style.bottom.%]="s.end.bottomPct"
+                >
+                  {{ s.end.display }}
+                </span>
+              }
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+
+    <!-- Category axis. Only the ends are labelled once the axis gets crowded. -->
+    <div class="lc-x-axis" aria-hidden="true">
+      @for (label of labels(); track $index; let i = $index) {
+        <span
+          class="lc-x-label"
+          [class.lc-x-hidden]="labels().length > 12 && i !== 0 && i !== labels().length - 1"
+          [title]="label"
+          >{{ label }}</span
+        >
+      }
+    </div>
+
+    <table class="sr-only">
+      <caption>Chart data</caption>
+      <thead>
+        <tr>
+          <th scope="col">Category</th>
+          @for (item of legend(); track item.label) {
+            <th scope="col">{{ item.label }}</th>
+          }
+        </tr>
+      </thead>
+      <tbody>
+        @for (label of labels(); track $index; let i = $index) {
+          <tr>
+            <th scope="row">{{ label }}</th>
+            @for (s of plotted(); track s.label) {
+              <td>{{ s.points[i].display }}</td>
+            }
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+} @else {
+  <p class="py-8 text-center text-sm text-faint">No data to chart.</p>
+}

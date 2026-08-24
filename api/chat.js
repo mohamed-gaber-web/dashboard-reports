@@ -1,8 +1,8 @@
 /**
- * POST /api/chat — the AI Analyst backend (Anthropic / Claude).
+ * POST /api/chat — the AI Analyst backend.
  *
- * Holds the Anthropic API key server-side (never shipped to the browser) and
- * streams Claude's response back as Server-Sent Events. Claude narrates in prose
+ * Holds the model API keys server-side (never shipped to the browser) and
+ * streams the response back as Server-Sent Events. The model narrates in prose
  * and, when a report is wanted, calls the `emit_report` tool — whose input IS the
  * Report Spec the Angular app renders and computes locally against real data.
  *
@@ -24,17 +24,28 @@
  * so a permissive schema plus that compiler is both safer and more honest than a
  * rigid schema that would force the model to emit empty placeholders.
  *
+ * ## Two providers, one SSE contract
+ *
+ * The request may name a provider (`"anthropic"` or `"gemini"`), chosen from the
+ * model picker in the UI; `api/_lib/ai-provider.js` resolves it and holds the
+ * keys. The two paths differ only in HOW the tool calls arrive — Claude streams
+ * argument fragments, Gemini delivers each `functionCall` whole — and both end
+ * up emitting the same `report` / `analysis` / `export` events through the same
+ * `EVENT_FOR_TOOL` map. `chat-api.service.ts` cannot tell which one answered.
+ *
  * Written against raw Node req/res so it runs unchanged both as a Vercel
  * serverless function and under the local dev server (dev-api/server.js).
  *
- * Env: ANTHROPIC_API_KEY (required).
+ * Env: ANTHROPIC_API_KEY / GEMINI_API_KEY (at least one)
  *      ANTHROPIC_MODEL  (optional, default claude-opus-5)
  *      ANTHROPIC_EFFORT (optional, default medium — see note below)
+ *      GEMINI_MODEL     (optional, default gemini-2.5-flash)
+ *      AI_PROVIDER      (optional, forces the server-side default)
  */
 
 const Anthropic = require('@anthropic-ai/sdk');
-
-const DEFAULT_MODEL = 'claude-opus-5';
+const { resolveProvider } = require('./_lib/ai-provider');
+const { streamGeminiAnalyst } = require('./_lib/gemini-analyst');
 
 // Effort trades reasoning depth against latency. This is an interactive chat, so
 // `medium` is the default rather than the API's `high` — report design is a
@@ -212,6 +223,29 @@ const EXPORT_TOOL = {
   },
 };
 
+/** The three tools, in the order they are offered to the model. */
+const TOOLS = [REPORT_TOOL, ANALYSIS_TOOL, EXPORT_TOOL];
+
+/**
+ * Which SSE event each tool's arguments become.
+ *
+ * A CLOSED map, and that is the guard: a call to anything not named here is
+ * dropped rather than reaching the browser. Module scope because both provider
+ * paths need it — the Anthropic loop below and `streamGeminiAnalyst`.
+ */
+const EVENT_FOR_TOOL = {
+  [REPORT_TOOL.name]: (input) => ({ type: 'report', spec: input }),
+  [ANALYSIS_TOOL.name]: (input) => ({ type: 'analysis', analysis: input }),
+  [EXPORT_TOOL.name]: (input) => ({ type: 'export', format: input.format }),
+};
+
+/**
+ * Tools whose event is held until the turn ends. An export must not be acted on
+ * before a report emitted in the SAME reply has rendered, or the download ships
+ * the previous report.
+ */
+const DEFERRED_TOOLS = [EXPORT_TOOL.name];
+
 function systemPrompt(dataContext) {
   const pending = dataContext?.coverage === 'pending';
   const rowCount = dataContext?.rowCount ?? 0;
@@ -333,34 +367,14 @@ function withCurrentReport(turns, currentReport) {
   return [...turns.slice(0, -1), { ...last, content: last.content + note }];
 }
 
-/** Turn an SDK error into something a user can act on. */
-function explain(err) {
-  if (err instanceof Anthropic.AuthenticationError) {
-    return 'The Anthropic API key was rejected. Check ANTHROPIC_API_KEY.';
-  }
-  if (err instanceof Anthropic.PermissionDeniedError) {
-    return 'This Anthropic API key is not allowed to use that model.';
-  }
-  if (err instanceof Anthropic.RateLimitError) {
-    return 'Claude is rate-limited right now. Wait a moment and try again.';
-  }
-  if (err instanceof Anthropic.BadRequestError) {
-    // The most common first-run failure: a valid key on an account with no
-    // credits. The raw 400 buries that, so name it plainly — an API key and API
-    // credits are separate from a claude.ai subscription.
-    if (/credit balance is too low/i.test(err.message || '')) {
-      return 'The Anthropic account has no API credits. Add credits at console.anthropic.com → Billing (a Claude Pro/Max subscription does not include API credits).';
-    }
-    return `Claude rejected the request: ${err.message}`;
-  }
-  if (err instanceof Anthropic.APIConnectionError) {
-    return 'Could not reach the Anthropic API. Check the network connection.';
-  }
-  if (err instanceof Anthropic.APIError) {
-    return `Anthropic API error ${err.status}: ${err.message}`;
-  }
-  return err?.message || 'Unexpected server error.';
-}
+/**
+ * Turn an SDK error into something a user can act on.
+ *
+ * Shared with `api/chat-report.js` — two endpoints hitting the same API should
+ * not disagree about what "no credits" looks like. Routes on the provider, so a
+ * Gemini failure is explained in Gemini's terms.
+ */
+const { explainAiError } = require('./_lib/ai-errors');
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -373,19 +387,13 @@ module.exports = async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-cache, no-transform');
   res.setHeader('Connection', 'keep-alive');
 
-  try {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      sse(res, {
-        type: 'error',
-        message:
-          'AI is not configured. Set ANTHROPIC_API_KEY (console.anthropic.com) and restart.',
-      });
-      res.end();
-      return;
-    }
+  // Declared out here so the catch can explain a failure in the right
+  // provider's terms — it is the first thing resolved and the last thing needed.
+  let provider = null;
 
-    const { messages = [], dataContext, currentReport } = await readBody(req);
+  try {
+    const { messages = [], dataContext, currentReport, provider: requested } = await readBody(req);
+
     const turns = withCurrentReport(sanitizeMessages(messages), currentReport);
     if (!turns.length) {
       sse(res, { type: 'error', message: 'No message to send.' });
@@ -393,10 +401,44 @@ module.exports = async function handler(req, res) {
       return;
     }
 
-    const client = new Anthropic({ apiKey });
+    // Which model answers. `requested` comes from the picker in the UI and is
+    // checked against a closed enum inside resolveProvider — an unknown value
+    // falls back to the server's default rather than failing the request.
+    const decision = resolveProvider(requested);
+    if (!decision.ok) {
+      sse(res, { type: 'error', message: decision.error });
+      res.end();
+      return;
+    }
+    provider = decision.provider;
+
+    const system = systemPrompt(dataContext);
+
+    if (provider.id === 'gemini') {
+      const { refused } = await streamGeminiAnalyst(
+        {
+          apiKey: provider.apiKey,
+          model: provider.model,
+          system,
+          tools: TOOLS,
+          messages: turns,
+          eventFor: EVENT_FOR_TOOL,
+          deferTools: DEFERRED_TOOLS,
+        },
+        (event) => sse(res, event),
+      );
+      if (refused) {
+        sse(res, { type: 'error', message: `${provider.label} declined to answer that request.` });
+      }
+      sse(res, { type: 'done' });
+      res.end();
+      return;
+    }
+
+    const client = new Anthropic({ apiKey: provider.apiKey });
 
     const stream = client.messages.stream({
-      model: process.env.ANTHROPIC_MODEL || DEFAULT_MODEL,
+      model: provider.model,
       max_tokens: 16000,
       // Adaptive thinking: designing a report against a live schema and coverage
       // rules is a reasoning task, and Claude decides how much to spend per turn.
@@ -406,20 +448,14 @@ module.exports = async function handler(req, res) {
       // and identical across every turn of a conversation. Caching it makes
       // follow-up questions markedly cheaper; it re-caches when the user changes
       // the slice, which is exactly when it should.
-      system: [{ type: 'text', text: systemPrompt(dataContext), cache_control: { type: 'ephemeral' } }],
-      tools: [REPORT_TOOL, ANALYSIS_TOOL, EXPORT_TOOL],
+      system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
+      tools: TOOLS,
       messages: turns,
     });
 
-    // Which SSE event each tool's arguments become. Claude may call several in
-    // one turn (analyse + report + export), so the block currently streaming is
-    // tracked rather than assumed.
-    const EVENT_FOR_TOOL = {
-      [REPORT_TOOL.name]: (input) => ({ type: 'report', spec: input }),
-      [ANALYSIS_TOOL.name]: (input) => ({ type: 'analysis', analysis: input }),
-      [EXPORT_TOOL.name]: (input) => ({ type: 'export', format: input.format }),
-    };
-
+    // Claude may call several tools in one turn (analyse + report + export), so
+    // the block currently streaming is tracked rather than assumed.
+    //
     // Accumulates the streamed tool arguments. The API guarantees the assembled
     // string is valid JSON, but a stream cut short mid-call would not be — hence
     // the try/catch at the close.
@@ -469,8 +505,8 @@ module.exports = async function handler(req, res) {
     sse(res, { type: 'done' });
     res.end();
   } catch (err) {
-    console.error('[api/chat] error:', err);
-    sse(res, { type: 'error', message: explain(err) });
+    console.error(`[api/chat] ${provider?.id ?? 'unresolved'} error:`, err);
+    sse(res, { type: 'error', message: explainAiError(err, provider) });
     res.end();
   }
 };

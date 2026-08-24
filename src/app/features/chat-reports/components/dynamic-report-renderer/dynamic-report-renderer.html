@@ -1,0 +1,23 @@
+@if (components().length) {
+  <div class="flex flex-col" [class]="spacing()">
+    @for (component of components(); track $index) {
+      @switch (component.type) {
+        @case ('kpi_grid') {
+          <app-kpi-grid [items]="asKpiGrid(component).items" />
+        }
+        @case ('chart') {
+          <app-chart-widget [spec]="asChart(component)" variant="plain" />
+        }
+        @case ('table') {
+          <app-dynamic-table [spec]="asTable(component)" />
+        }
+        <!--
+          No @default. The set of renderable types is closed by design: the
+          parser drops anything else before it reaches here, and the backend
+          names the drop in `dropped[]` so the user is told rather than shown a
+          silent gap.
+        -->
+      }
+    }
+  </div>
+}

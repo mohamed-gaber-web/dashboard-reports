@@ -23,7 +23,23 @@ const GAP = 0.7;
 /** Arc length below which a slice would disappear entirely. */
 const MIN_ARC = 0.5;
 
-/** SVG donut chart with legend — no charting dependency. */
+/**
+ * Ring geometry per variant, in the 36×36 viewBox.
+ *
+ * A pie is a donut whose ring is thick enough to close the hole: the stroke is
+ * centred on `r`, so a stroke of `2r` reaches from the centre to `2r`. Both
+ * variants therefore share every line of arc maths below.
+ *
+ * The arcs carry `pathLength="100"` in the template, which normalises dash
+ * units to 0–100 regardless of the real circumference. Without it, changing `r`
+ * for the pie would silently break every `stroke-dasharray` percentage.
+ */
+const GEOMETRY = {
+  donut: { r: 15.915, strokeWidth: 3.4 },
+  pie: { r: 8.8, strokeWidth: 17.6 },
+} as const;
+
+/** SVG donut/pie chart with legend — no charting dependency. */
 @Component({
   selector: 'app-donut-chart',
   templateUrl: './donut-chart.html',
@@ -35,6 +51,15 @@ export class DonutChartComponent {
   readonly centerLabel = input('Total');
   /** How to render each slice's raw value in the legend. */
   readonly format = input<(value: number) => string>(formatInteger);
+
+  /**
+   * `donut` keeps the hole, and the total sits in it. `pie` fills the centre —
+   * which means there is nowhere to put the total, so it moves to the legend
+   * header rather than being dropped.
+   */
+  readonly variant = input<'donut' | 'pie'>('donut');
+
+  protected readonly geometry = computed(() => GEOMETRY[this.variant()]);
 
   /** Legend/arc hover pairing — hovering either dims every other slice. */
   protected readonly active = signal<number | null>(null);

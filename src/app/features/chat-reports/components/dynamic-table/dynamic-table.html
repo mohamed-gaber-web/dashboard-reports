@@ -1,0 +1,17 @@
+<section class="dyn-table">
+  <header class="dyn-table-header">
+    <h4 class="dyn-table-title">{{ spec().title || 'Details' }}</h4>
+    <span class="dyn-table-count">{{ caption() }}</span>
+  </header>
+
+  <app-data-table
+    [columns]="columns()"
+    [rows]="rows()"
+    [maxHeight]="maxHeight()"
+    [sortable]="true"
+    [zebra]="true"
+    emptyMessage="No rows to show."
+  />
+
+  <p class="dyn-table-hint">Click a column heading to sort.</p>
+</section>

@@ -9,12 +9,48 @@
       <thead>
         <tr>
           @for (col of columns(); track col.key) {
-            <th [class]="alignClass(col)">{{ col.header }}</th>
+            <th [class]="alignClass(col)" [attr.aria-sort]="ariaSort(col)">
+              @if (canSort(col)) {
+                <!--
+                  A button, not a click handler on the <th> — sorting has to be
+                  reachable by keyboard, and a real button gets that plus the
+                  focus ring for free.
+                -->
+                <button type="button" class="tbl-sort" (click)="toggleSort(col)">
+                  <span>{{ col.header }}</span>
+                  <span
+                    class="tbl-sort-icon"
+                    [class.is-active]="sortDirection(col) !== null"
+                    aria-hidden="true"
+                  >
+                    @switch (sortDirection(col)) {
+                      @case ('asc') {
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                          <path d="m6 15 6-6 6 6" stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                      }
+                      @case ('desc') {
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                          <path d="m6 9 6 6 6-6" stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                      }
+                      @default {
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <path d="m7 10 5-5 5 5M7 14l5 5 5-5" stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                      }
+                    }
+                  </span>
+                </button>
+              } @else {
+                {{ col.header }}
+              }
+            </th>
           }
         </tr>
       </thead>
       <tbody>
-        @for (row of rows(); track $index) {
+        @for (row of displayRows(); track $index) {
           <tr>
             @for (col of columns(); track col.key) {
               <td [class]="alignClass(col)">

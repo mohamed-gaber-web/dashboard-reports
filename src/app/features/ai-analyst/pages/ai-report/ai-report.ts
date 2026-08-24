@@ -7,13 +7,17 @@ import {
   signal,
 } from '@angular/core';
 import { IconComponent } from '../../../../shared/ui/icon/icon';
+import { ProviderSwitchComponent } from '../../../../shared/ui/provider-switch/provider-switch';
 import { SkeletonComponent } from '../../../../shared/ui/skeleton/skeleton';
 import { AnalysisPanelComponent } from '../../components/analysis-panel/analysis-panel';
 import { ChatPanelComponent } from '../../components/chat-panel/chat-panel';
 import { DynamicReportComponent } from '../../components/dynamic-report/dynamic-report';
 import { AiReportModel } from './ai-report.model';
 
-/** AI Analyst screen — chat with Claude to build & export dashboard reports. */
+/**
+ * AI Analyst screen — chat with the selected model to build & export dashboard
+ * reports. Which model that is comes from the picker in the control bar.
+ */
 @Component({
   selector: 'app-ai-report',
   imports: [
@@ -22,6 +26,7 @@ import { AiReportModel } from './ai-report.model';
     ChatPanelComponent,
     DynamicReportComponent,
     AnalysisPanelComponent,
+    ProviderSwitchComponent,
   ],
   templateUrl: './ai-report.html',
   styleUrl: './ai-report.css',

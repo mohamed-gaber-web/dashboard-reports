@@ -1,0 +1,32 @@
+<div class="@container">
+  <div class="grid gap-2.5" [class]="columns()">
+    @for (item of items(); track item.label) {
+      <article class="kpi-tile">
+        <span class="kpi-label" [title]="item.label">{{ item.label }}</span>
+
+        <div class="kpi-figure-row">
+          <span class="kpi-value">{{ item.value }}</span>
+
+          @if (item.change) {
+            <!--
+              Direction is never carried by colour alone: the arrow states it
+              and the signed text states it again, so the badge still reads
+              under CVD, in greyscale, and in forced-colors mode.
+            -->
+            <span class="kpi-delta" [class.is-positive]="item.isPositive" [class.is-negative]="!item.isPositive">
+              <svg class="kpi-delta-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true">
+                @if (item.isPositive) {
+                  <path d="M12 19V5M5 12l7-7 7 7" stroke-linecap="round" stroke-linejoin="round" />
+                } @else {
+                  <path d="M12 5v14M5 12l7 7 7-7" stroke-linecap="round" stroke-linejoin="round" />
+                }
+              </svg>
+              <span>{{ item.change }}</span>
+              <span class="sr-only">{{ item.isPositive ? 'favourable' : 'unfavourable' }}</span>
+            </span>
+          }
+        </div>
+      </article>
+    }
+  </div>
+</div>

@@ -87,6 +87,8 @@
   --color-content: var(--content);
   --color-muted: var(--content-muted);
   --color-faint: var(--content-faint);
+  /* Enables `text-on-brand` as a utility alongside the raw var. */
+  --color-on-brand: var(--content-on-brand);
 
   /* Status — per-theme, see :root / .dark */
   --color-success: var(--success);
@@ -115,6 +117,19 @@
   --content: #0d1522;
   --content-muted: #57637a;
   --content-faint: #8794a6;
+
+  /*
+   * Foreground on a saturated brand/accent fill — gradient buttons, the send
+   * button, user chat bubbles, KPI hero tiles.
+   *
+   * It is white in BOTH themes and that is deliberate: the surface underneath is
+   * a brand gradient, which stays dark and saturated regardless of light/dark
+   * mode, so flipping this to dark ink in dark mode would put near-black text on
+   * a mid-blue fill. It lives here rather than as a literal in a dozen component
+   * stylesheets so there is one place to revisit if a light brand primary ever
+   * needs dark ink on top.
+   */
+  --content-on-brand: #ffffff;
 
   --success: #157f45;
   --warning: #a35a06;

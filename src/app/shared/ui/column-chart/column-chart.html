@@ -1,0 +1,94 @@
+@if (groups().length) {
+  <div class="column-chart">
+    <!--
+      Legend. Present whenever there are two or more series — the dependable
+      identity channel, so nothing relies on colour-matching alone. It is also
+      what makes the palette's one CVD-floor adjacent pair legal.
+    -->
+    @if (showLegend()) {
+      <ul class="cc-legend" (mouseleave)="active.set(null)">
+        @for (item of legend(); track item.label; let i = $index) {
+          <li class="cc-legend-item" [style.opacity]="opacity(i)" (mouseenter)="active.set(i)">
+            <span class="cc-swatch" [style.backgroundColor]="item.color"></span>
+            <span class="truncate">{{ item.label }}</span>
+          </li>
+        }
+      </ul>
+    }
+
+    <div class="cc-body">
+      <!-- Value axis. Ticks are rounded to clean numbers by valueScale(). -->
+      <div class="cc-axis" aria-hidden="true">
+        @for (tick of ticks(); track $index) {
+          <span class="cc-axis-tick" [style.bottom.%]="tick.bottomPct">{{ tick.label }}</span>
+        }
+      </div>
+
+      <div class="cc-plot-wrap">
+        <!-- Recessive hairline gridlines, one per tick. -->
+        <div class="cc-grid" aria-hidden="true">
+          @for (tick of ticks(); track $index) {
+            <span class="cc-gridline" [style.bottom.%]="tick.bottomPct"></span>
+          }
+        </div>
+
+        <div class="cc-plot" (mouseleave)="active.set(null)">
+          @for (group of groups(); track group.label) {
+            <div class="cc-group">
+              <div class="cc-columns">
+                @for (col of group.columns; track col.seriesIndex) {
+                  <div
+                    class="cc-slot"
+                    [style.opacity]="opacity(col.seriesIndex)"
+                    [title]="col.label + ' — ' + col.display"
+                    (mouseenter)="active.set(col.seriesIndex)"
+                  >
+                    @if (showValueLabels()) {
+                      <span class="cc-value" [style.bottom.%]="col.heightPct">{{ col.display }}</span>
+                    }
+                    <span
+                      class="cc-column"
+                      [class.cc-column-negative]="col.value < 0"
+                      [style.height.%]="col.heightPct"
+                      [style.bottom.%]="col.value < 0 ? zeroPct() - col.heightPct : zeroPct()"
+                      [style.backgroundColor]="col.color"
+                    ></span>
+                  </div>
+                }
+              </div>
+              <span class="cc-x-label" [title]="group.label">{{ group.label }}</span>
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+
+    <!--
+      The same figures as text. Colour and position are never the only way to
+      read this chart, and a screen reader gets the numbers rather than a shape.
+    -->
+    <table class="sr-only">
+      <caption>Chart data</caption>
+      <thead>
+        <tr>
+          <th scope="col">Category</th>
+          @for (item of legend(); track item.label) {
+            <th scope="col">{{ item.label }}</th>
+          }
+        </tr>
+      </thead>
+      <tbody>
+        @for (group of groups(); track group.label) {
+          <tr>
+            <th scope="row">{{ group.label }}</th>
+            @for (col of group.columns; track col.seriesIndex) {
+              <td>{{ col.display }}</td>
+            }
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+} @else {
+  <p class="py-8 text-center text-sm text-faint">No data to chart.</p>
+}

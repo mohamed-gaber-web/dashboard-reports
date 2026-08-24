@@ -1,0 +1,135 @@
+<div class="page">
+  <app-page-header
+    eyebrow="AI"
+    title="Chat Reports"
+    subtitle="Ask a question and get a rendered report back in the conversation."
+  >
+    <!--
+      Which model answers. In the header rather than by the composer because it
+      applies to the whole conversation, not to the next message — and it
+      renders nothing when only one provider is configured.
+    -->
+    <app-provider-switch
+      [providers]="model.aiProviders()"
+      [selected]="model.aiProviderId()"
+      [busy]="model.busy()"
+      (selectedChange)="model.setAiProvider($event)"
+    />
+
+    @if (model.hasConversation()) {
+      <button type="button" class="btn-ghost btn-sm" (click)="model.clear()">New chat</button>
+    }
+  </app-page-header>
+
+  <!-- Grounding status. Says plainly what the answers are based on. -->
+  @if (model.contextLoading()) {
+    <p class="ctx-line">Reading sales-order data&hellip;</p>
+  } @else if (model.contextError(); as err) {
+    <p class="ctx-line ctx-warn" role="status">
+      {{ err }}
+      <button type="button" class="ctx-retry" (click)="model.loadContext()">Try again</button>
+    </p>
+  } @else if (model.groundedRows(); as rows) {
+    <p class="ctx-line">
+      Grounded in <strong>{{ rows.toLocaleString() }}</strong> open backorder lines from D365.
+    </p>
+  }
+
+  <section class="chat card card-lg">
+    <div #scroller class="chat-scroll">
+      @if (!model.hasConversation() && !model.busy()) {
+        <div class="empty">
+          <span class="empty-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+              <path d="M3 3v18h18M7 15l3-4 3 3 4-6" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </span>
+          <h2 class="empty-title">Ask about your sales orders</h2>
+          <p class="empty-text">
+            Answers come back as a report &mdash; headline numbers, charts and tables &mdash;
+            rendered right here in the conversation.
+          </p>
+
+          <div class="starters">
+            @for (starter of model.starters; track starter) {
+              <button type="button" class="chip" (click)="onAction(starter)">{{ starter }}</button>
+            }
+          </div>
+        </div>
+      }
+
+      @for (turn of model.turns(); track $index; let i = $index) {
+        @if (turn.role === 'user') {
+          <div class="row row-user">
+            <div class="bubble-user">{{ turn.content }}</div>
+          </div>
+        } @else {
+          <div class="row">
+            <app-chat-message
+              [payload]="turn.payload"
+              [groundedRows]="model.groundedRows()"
+              [actionsEnabled]="i === model.latestAssistantIndex() && !model.busy()"
+              (actionSelected)="onAction($event)"
+            />
+          </div>
+        }
+      }
+
+      @if (model.busy()) {
+        <div class="row" aria-live="polite">
+          <div class="thinking">
+            <span class="dots"><span></span><span></span><span></span></span>
+            <span>Building your report&hellip;</span>
+          </div>
+        </div>
+      }
+
+      @if (model.error(); as err) {
+        <div class="chat-error" role="alert">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+            <path [attr.d]="icons.alert" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          <span class="flex-1">{{ err }}</span>
+          <button type="button" class="btn-ghost btn-sm" (click)="model.retry()">Retry</button>
+        </div>
+      }
+    </div>
+
+    <!-- Composer -->
+    <div class="composer-dock">
+      <div class="composer-shell">
+        <textarea
+          rows="1"
+          maxlength="2000"
+          placeholder="Ask about your sales orders&hellip;"
+          aria-label="Ask about your sales orders"
+          [value]="draft()"
+          (input)="onInput($event)"
+          (keydown)="onKeydown($event)"
+          class="composer"
+        ></textarea>
+
+        @if (model.busy()) {
+          <button type="button" (click)="model.stop()" class="send-btn" aria-label="Stop">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path [attr.d]="icons.stop" />
+            </svg>
+          </button>
+        } @else {
+          <button
+            type="button"
+            (click)="submit()"
+            [disabled]="!draft().trim()"
+            class="send-btn"
+            aria-label="Send"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true">
+              <path [attr.d]="icons.send" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </button>
+        }
+      </div>
+      <p class="composer-hint">Enter to send &middot; Shift+Enter for a new line</p>
+    </div>
+  </section>
+</div>

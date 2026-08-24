@@ -24,7 +24,7 @@
   flex-shrink: 0;
   margin-top: 0.1rem;
   border-radius: 0.55rem;
-  color: #fff;
+  color: var(--content-on-brand);
   background: linear-gradient(135deg, var(--color-brand-500), var(--color-accent-500));
 }
 
@@ -106,7 +106,7 @@
   height: 1.15rem;
   border-radius: 9999px;
   background: var(--color-brand-600);
-  color: #fff;
+  color: var(--content-on-brand);
   font-size: 0.625rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;

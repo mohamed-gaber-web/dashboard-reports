@@ -19,10 +19,14 @@ npm test         # Vitest unit tests
 ```
 
 **Run `npm run dev:api` alongside `npm start`.** It holds the secrets and serves
-`/api/token` (D365 auth) and `/api/chat` (AI Analyst); the Vite proxy forwards both
-to it. Put secrets in a git-ignored `.env` (see `.env.example`; the dev server
-auto-loads it): `AZURE_CLIENT_SECRET` (D365) and `ANTHROPIC_API_KEY` (AI). Without
-`dev:api` running, login/data and the AI page return 500.
+`/api/token` (D365 auth), `/api/chat` (AI Analyst), `/api/chat-report`
+(Chat Reports) and `/api/ai-providers` (the model picker's feed); the Vite proxy
+forwards all four to it. Put secrets in a git-ignored `.env` (see `.env.example`;
+the dev server auto-loads it): `AZURE_CLIENT_SECRET` (D365) and at least one of
+`ANTHROPIC_API_KEY` / `GEMINI_API_KEY` (AI). Without `dev:api` running, login/data
+and the AI pages return 500 — and note that dev-api itself will not boot unless
+dependencies are installed (see Gotchas). A healthy start prints one flag per AI
+provider, so "which model can actually answer right now" is visible at a glance.
 
 ## Tech stack
 
@@ -38,21 +42,24 @@ src/app/
   core/            Singletons — cross-cutting, providedIn:'root'
     http/          ApiService  — the ONLY place HttpClient is used for D365
     auth/          AuthService (Azure AD token) + authInterceptor (bearer + 401 retry)
+    ai/            AiProviderService (which model answers, app-wide)
     reporting/     ReportRegistryService + REPORT_GROUPS (nav metadata)
     theme/         ThemeService (light/dark)
     branding/      BrandingService (app name, logo, colours — runtime re-theming)
     models/        ODataResponse<T>, ODataQuery
   shared/          Reusable, presentational — no feature knowledge
-    ui/            icon, kpi-card, chart-card, bar-chart, donut-chart, data-table,
-                   status-badge, spinner, empty-state, page-header
-    models/        chart, table-column, badge types
-    utils/         format + group-by/aggregate helpers
+    ui/            icon, kpi-card, chart-card, bar-chart, column-chart, line-chart,
+                   donut-chart, data-table, status-badge, spinner, empty-state,
+                   page-header, provider-switch
+    models/        chart, series, table-column, badge types
+    utils/         format + group-by/aggregate + scale/compare helpers
   layout/          shell (frame), sidebar (module nav), topbar (theme + status)
   features/
     dashboard/     Overview page (aggregates module headline numbers)
     sales-order/   services/ models/ pages/{sales-order-list, sales-order-report}
     settings/      Branding & appearance (name, logo, colours, presets, theme)
     ai-analyst/    Chat → generative dashboard reports (Claude) + Excel/PDF export
+    chat-reports/  Chat → strict-JSON report payload rendered inside the chat bubble
 ```
 
 **MVVM mapping — follow this for every screen:**
@@ -149,14 +156,59 @@ no edits. **Bind routes as strings** — `[routerLink]="'/' + child.route"` — 
   tenant — the token audience must match the resource. The proven sandbox pair is
   `growpath.sandbox.operations.eu.dynamics.com`. Change both together.
 
-### AI Analyst (Anthropic / Claude integration)
+### AI providers — Claude and Gemini, switchable from the UI
 
-- **The Anthropic key is server-side only.** `api/chat.js` (Vercel function in prod;
-  `dev-api/server.js` in dev) holds `ANTHROPIC_API_KEY` and streams SSE to the
-  browser. The Angular app never sees the key — same principle as `/api/token`.
-- **Model.** `claude-opus-5` via the official `@anthropic-ai/sdk`, streaming, with
-  adaptive thinking. `ANTHROPIC_MODEL` and `ANTHROPIC_EFFORT` (default `medium` —
-  chat latency beats the API's `high` default here) override per-deployment.
+Both AI screens run on either provider. **Claude is the provider; Gemini is the
+switch** — the prompts, the tool contracts and the caching strategy were designed
+against Claude, and it wins whenever its key is present.
+
+- **`api/_lib/ai-provider.js` is the only place the choice is made.** It owns the
+  closed registry, reads the keys, and hands each endpoint a resolved
+  `{id, label, apiKey, model}`. No endpoint reads `process.env` for a key any more.
+- **The browser picks by NAME, never by key.** The request body carries
+  `provider: 'anthropic' | 'gemini'` from `ProviderSwitchComponent` →
+  `AiProviderService`. It is re-validated server-side against the closed enum, and
+  an unrecognised value falls through to the server's default rather than erroring
+  — so a stale tab or an older client keeps working. Every key stays server-side.
+- **`GET /api/ai-providers`** reports which providers are configured, so the picker
+  can disable a dead option instead of offering one that 503s on the next question.
+  It publishes `available` (a boolean) and `keyEnv` (a variable NAME) — never a key.
+  In dev it **must** follow the same proxy target as `/api/chat`, or it reports
+  availability for a different process than the one answering.
+- **The picker shows both providers even when only one key is set**, greying the
+  other with a tooltip naming its variable. Hiding it made a one-key deployment
+  look like the feature was missing.
+- **Selection is app-wide and sticky** (`rd.ai.provider` in `localStorage`), and
+  switching mid-conversation needs no reset: the history is prose plus grounded
+  aggregates, and `lastSpec` is a Report Spec the app compiles itself — nothing in
+  either is provider-specific.
+- **Gemini adapts to Claude's shapes, not the reverse.** `gemini-report.js` returns
+  an Anthropic-shaped message so `chat-report.js`'s three-tier `payloadFrom` runs
+  unchanged; `gemini-analyst.js` emits the same SSE events through the same
+  `EVENT_FOR_TOOL` map, so `chat-api.service.ts` cannot tell who answered.
+- **One schema per contract, translated.** `gemini-schema.js` converts the existing
+  Anthropic JSON Schema into Gemini's dialect (uppercase types, `anyOf` for unions,
+  `format: 'enum'`). Do NOT hand-write a second Gemini schema — the two existing
+  sync obligations are already the ones that get forgotten; a third would be worse.
+- **Claude asks for a tool call; Gemini is decoded against a response schema.**
+  `responseMimeType: 'application/json'` constrains decoding itself, which is why
+  the Gemini report path usually needs only tier 1 while Claude's needs three.
+- **Gemini often calls tools with NO prose.** The AI Analyst's client already falls
+  back to "📊 Built a report from your data." for an empty reply, which is what
+  keeps that turn from rendering blank.
+- **`maxOutputTokens` is deliberately unset on Gemini.** Thinking tokens share the
+  budget, so any figure chosen for the answer truncates it into invalid JSON — and
+  would also have to be valid for whatever `GEMINI_MODEL` points at.
+
+### AI Analyst (`/api/chat`)
+
+- **The keys are server-side only.** `api/chat.js` (Vercel function in prod;
+  `dev-api/server.js` in dev) holds them and streams SSE to the browser. The
+  Angular app never sees a key — same principle as `/api/token`.
+- **Models.** `claude-opus-5` via `@anthropic-ai/sdk`, streaming, with adaptive
+  thinking; or `gemini-2.5-flash` via `@google/genai`. `ANTHROPIC_MODEL`,
+  `ANTHROPIC_EFFORT` (default `medium` — chat latency beats the API's `high`
+  default here) and `GEMINI_MODEL` override per-deployment.
 - **The system prompt is prompt-cached** (`cache_control: ephemeral`). It carries
   the schema, aggregates and sample rows — identical across turns, so follow-ups
   are far cheaper. It re-caches when the user changes slice, which is correct.
@@ -244,14 +296,74 @@ no edits. **Bind routes as strings** — `[routerLink]="'/' + child.route"` — 
   `[innerHTML]` so Angular's sanitiser runs as a second layer. Both are tested;
   `markdown.util.spec.ts` is what catches a regression here.
 
+### Chat Reports (`features/chat-reports`) — the OTHER generative pattern
+
+A second, deliberately different AI screen. Read this before "unifying" the two.
+
+- **Opposite contract to the AI Analyst.** AI Analyst: the model emits a *spec*, the
+  app computes every figure, so nothing can be hallucinated. Chat Reports: the model
+  emits the **finished payload, figures included** — `text_response`,
+  `suggested_actions`, `template_type`, `components[]` — which is what makes a whole
+  report renderable in one chat bubble. The tradeoff is real and accepted: figures are
+  **grounded** (real D365 aggregates in the system prompt, plus a hard "state nothing
+  the summary does not contain" rule) but **not recomputed**. Every report therefore
+  renders a provenance line saying so. Do not quietly delete that line.
+- **`POST /api/chat-report`** is request/response JSON, not SSE — the payload must be
+  complete before anything can render, so streaming it to the browser buys nothing.
+  It still streams server-side (`.stream()` + `finalMessage()`) purely so a slow reply
+  cannot trip the SDK/Vercel timeouts.
+- **The tool is NOT forced.** `tool_choice: {type:'tool'}` requires thinking to be
+  off, and thinking is on by default on `claude-opus-5` — where disabling it has a
+  documented failure mode of writing tool calls into *visible text*, the exact failure
+  forcing would be meant to prevent. Instead `payloadFrom()` in `api/chat-report.js`
+  recovers a payload in three tiers: tool call → JSON extracted from prose → prose
+  wrapped as a component-less payload. **Tier 3 cannot fail**, which is what makes the
+  strict-JSON contract total. Don't "simplify" this to a forced tool call.
+- **Validated twice, on purpose.** `api/_lib/report-payload.js` validates what the
+  MODEL produced; `features/chat-reports/utils/report-payload.parser.ts` validates
+  what came back over HTTP (which could be a proxy error page or an older contract).
+  Two trust boundaries, not redundancy. Both **repair and report** rather than reject:
+  fixes land in `dropped[]` and are shown to the user.
+- **`REPORT_TOOL.input_schema` in `api/_lib/report-contract.js` must stay in sync with
+  `ReportPayload`** in `features/chat-reports/models/report-payload.model.ts`.
+- **Files under `api/` beginning with `_` are not Vercel functions** — that is why the
+  shared backend helpers live in `api/_lib/` instead of becoming public endpoints.
+- **`@switch`, not dynamic component loading.** The renderable set must be CLOSED at
+  compile time: the payload is LLM-authored, and an open registry would mean an
+  unrecognised `type` could reach the DOM.
+- **`text_response` is bound with `{{ }}`, never `[innerHTML]`.** It is untrusted
+  model output. (The AI Analyst renders Markdown because it escapes first; this
+  contract has no markdown, so interpolation is both simpler and safer.)
+
 ### Gotchas (do not re-break)
 
+- **A 5xx on `/api/token` almost always means "dev-api is not running".** The
+  endpoint is rarely the problem. Two ways it ends up down, both of which look
+  identical from the browser:
+  1. **It was never started.** `npm start` alone is not enough — `npm run dev:api`
+     has to be running in a second terminal, for the whole session.
+  2. **It crashed on boot.** `dev-api/server.js` requires every handler at startup,
+     so a missing dependency anywhere (e.g. `@anthropic-ai/sdk`, `@google/genai`)
+     takes the entire server down — including `/api/token`, which needs neither.
+     Run `npm install` and read the console.
+
+  **Diagnose in this order, it takes ten seconds:** is anything listening on `:3001`
+  (`netstat -ano | findstr :3001`) → does `node dev-api/server.js` print
+  `[dev-api] listening on http://localhost:3001` → only then suspect the route.
+  `proxy.conf.js` now answers a refused connection with **503 and the fix in the
+  body** ("Start it… with `npm run dev:api`") instead of a bare, bodyless 500 —
+  if you see that message, the endpoint is fine and nothing is behind it.
 - **`/api/token` and `/api/chat` require `npm run dev:api`** *unless* the route is
   pointed at the deployed functions. `proxy.conf.js` decides each independently:
   `/api/token` follows `REMOTE_API_URL` when set (the Azure secret is marked
   Sensitive in Vercel and can never be pulled back); `/api/chat` stays local
   whenever `ANTHROPIC_API_KEY` is set, so local edits to the AI backend actually
-  run. If a route targets `:3001` and dev-api isn't running, it returns **500**. The
+  run. `/api/chat-report` follows the same decision as `/api/chat` — note that
+  `/api/chat` is a string *prefix* and so already matches `/api/chat-report`; they
+  work today only because both target the same host with no path rewrite. Diverge
+  them and the explicit `/api/chat-report` entry becomes load-bearing.
+  If a route targets `:3001` and dev-api isn't running, the proxy returns **503 with
+  a message naming the fix** (see the first gotcha). The
   dev-api calls Azure server-to-server (no browser `Origin`), which also sidesteps the
   old `AADSTS9002326` cross-origin rejection — no Origin-stripping needed on those routes.
 - **Proxy config loads once at startup** — always restart `npm start` after editing

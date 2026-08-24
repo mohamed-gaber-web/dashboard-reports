@@ -1,0 +1,28 @@
+<!--
+  A radiogroup, not a tablist: these buttons choose a value, they do not reveal
+  panels. The `.segment` / `.seg` primitives from styles.css already style
+  `aria-selected`, so `.seg-active` is bound alongside `aria-checked` — correct
+  semantics without a second set of styles.
+-->
+@if (hasChoice()) {
+  <div class="provider-switch">
+    <span class="provider-label" id="provider-switch-label">Model</span>
+
+    <div class="segment" role="radiogroup" aria-labelledby="provider-switch-label">
+      @for (option of providers(); track option.id) {
+        <button
+          type="button"
+          role="radio"
+          class="seg"
+          [class.seg-active]="option.id === selected()"
+          [attr.aria-checked]="option.id === selected()"
+          [disabled]="!option.available || busy()"
+          [attr.title]="hint(option)"
+          (click)="choose(option)"
+        >
+          {{ option.label }}
+        </button>
+      }
+    </div>
+  </div>
+}

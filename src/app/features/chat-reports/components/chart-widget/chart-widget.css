@@ -1,0 +1,13 @@
+/*
+ * Charts inside a chat bubble get a shorter plot than they would on a report
+ * page — the column is narrow and the transcript scrolls, so a full-height
+ * chart would push the next message off-screen.
+ *
+ * These inherit down into the chart primitives, which read them as
+ * `var(--cc-height, <default>)` rather than declaring them on their own hosts.
+ */
+:host {
+  display: block;
+  --cc-height: 11.5rem;
+  --lc-height: 11.5rem;
+}

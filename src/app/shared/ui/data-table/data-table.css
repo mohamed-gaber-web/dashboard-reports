@@ -19,3 +19,75 @@
   border-top: 1px solid var(--border-soft);
   border-radius: 0;
 }
+
+/* ── Sortable headers ───────────────────────────────────────────────────── */
+
+/*
+ * The sort control fills its cell so the whole header is the hit target, and
+ * inherits the cell's type so a sortable column looks identical to a plain one
+ * until you point at it.
+ */
+.tbl-sort {
+  display: inline-flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.3rem;
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+  background: none;
+  border: 0;
+  padding: 0;
+}
+
+/* Right-aligned numeric columns keep their control against the right edge. */
+.text-right .tbl-sort {
+  justify-content: flex-end;
+}
+.text-center .tbl-sort {
+  justify-content: center;
+}
+
+.tbl-sort:hover {
+  color: var(--content);
+}
+
+.tbl-sort:focus-visible {
+  outline: 2px solid var(--color-brand-400);
+  outline-offset: 2px;
+  border-radius: 0.25rem;
+}
+
+.tbl-sort-icon {
+  display: inline-flex;
+  height: 0.75rem;
+  width: 0.75rem;
+  flex-shrink: 0;
+  /*
+   * The neutral state is a hint, not a decoration — visible enough to say "this
+   * sorts" on hover, quiet enough not to compete with the header text.
+   */
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.tbl-sort:hover .tbl-sort-icon,
+.tbl-sort:focus-visible .tbl-sort-icon {
+  opacity: 0.55;
+}
+
+.tbl-sort-icon.is-active {
+  opacity: 1;
+  color: var(--color-brand-500);
+}
+
+.tbl-sort-icon svg {
+  height: 100%;
+  width: 100%;
+}
+
+.dark .tbl-sort-icon.is-active {
+  color: var(--color-brand-300);
+}

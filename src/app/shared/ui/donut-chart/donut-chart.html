@@ -7,20 +7,25 @@
           <circle
             cx="18"
             cy="18"
-            r="15.915"
+            [attr.r]="geometry().r"
             fill="none"
             stroke="var(--color-surface-muted)"
-            stroke-width="3.4"
+            [attr.stroke-width]="geometry().strokeWidth"
           />
           <g class="donut-arcs">
           @for (seg of segments(); track seg.label) {
+            <!--
+              pathLength normalises dash units to 0–100, so the arc maths is
+              independent of the radius each variant uses.
+            -->
             <circle
               cx="18"
               cy="18"
-              r="15.915"
+              [attr.r]="geometry().r"
+              pathLength="100"
               fill="none"
               [attr.stroke]="seg.color"
-              stroke-width="3.4"
+              [attr.stroke-width]="geometry().strokeWidth"
               stroke-linecap="butt"
               [attr.stroke-dasharray]="seg.dashArray"
               [attr.stroke-dashoffset]="seg.dashOffset"
@@ -33,35 +38,50 @@
           }
           </g>
         </svg>
-        <div class="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-          <span class="text-2xl font-semibold text-content" [title]="total().toLocaleString()">
-            {{ totalDisplay() }}
-          </span>
-          <span class="text-xs text-faint">{{ centerLabel() }}</span>
-        </div>
+
+        <!-- A pie has no hole to put the total in; it moves to the legend header. -->
+        @if (variant() === 'donut') {
+          <div class="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+            <span class="text-2xl font-semibold text-content" [title]="total().toLocaleString()">
+              {{ totalDisplay() }}
+            </span>
+            <span class="text-xs text-faint">{{ centerLabel() }}</span>
+          </div>
+        }
       </div>
 
-      <ul class="flex w-full min-w-0 flex-col gap-1" (mouseleave)="active.set(null)">
-        @for (seg of segments(); track seg.label) {
-          <li
-            class="donut-legend-row flex items-center gap-2.5 rounded-lg px-2 py-1 text-sm transition-colors hover:bg-surface-muted/70"
-            [style.opacity]="opacity(seg.index)"
-            (mouseenter)="active.set(seg.index)"
-          >
-            <span
-              class="h-2.5 w-2.5 shrink-0 rounded-full"
-              [style.backgroundColor]="seg.color"
-            ></span>
-            <span class="truncate text-muted" [title]="seg.label">{{ seg.label }}</span>
-            <span class="ml-auto shrink-0 font-medium tabular-nums text-content">
-              {{ seg.valueLabel }}
+      <div class="flex w-full min-w-0 flex-col gap-1.5">
+        @if (variant() === 'pie') {
+          <div class="flex items-baseline justify-between gap-2 px-2">
+            <span class="text-xs text-faint">{{ centerLabel() }}</span>
+            <span class="text-sm font-semibold text-content" [title]="total().toLocaleString()">
+              {{ totalDisplay() }}
             </span>
-            <span class="w-11 shrink-0 text-right tabular-nums text-faint">
-              {{ seg.percentLabel }}
-            </span>
-          </li>
+          </div>
         }
-      </ul>
+
+        <ul class="flex w-full min-w-0 flex-col gap-1" (mouseleave)="active.set(null)">
+          @for (seg of segments(); track seg.label) {
+            <li
+              class="donut-legend-row flex items-center gap-2.5 rounded-lg px-2 py-1 text-sm transition-colors hover:bg-surface-muted/70"
+              [style.opacity]="opacity(seg.index)"
+              (mouseenter)="active.set(seg.index)"
+            >
+              <span
+                class="h-2.5 w-2.5 shrink-0 rounded-full"
+                [style.backgroundColor]="seg.color"
+              ></span>
+              <span class="truncate text-muted" [title]="seg.label">{{ seg.label }}</span>
+              <span class="ml-auto shrink-0 font-medium tabular-nums text-content">
+                {{ seg.valueLabel }}
+              </span>
+              <span class="w-11 shrink-0 text-right tabular-nums text-faint">
+                {{ seg.percentLabel }}
+              </span>
+            </li>
+          }
+        </ul>
+      </div>
     </div>
   </div>
 } @else {

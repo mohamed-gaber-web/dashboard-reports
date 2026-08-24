@@ -1,0 +1,184 @@
+/*
+ * Column chart. Pure CSS geometry — no charting dependency, and every colour is
+ * a token or a bound series colour, so runtime re-theming reaches all of it.
+ *
+ * Mark specs follow the shared chart anatomy: columns capped at 24px with a 4px
+ * rounded cap and a square baseline, a 2px surface gap between touching
+ * columns, and hairline recessive gridlines.
+ */
+
+/*
+ * Plot height is read as `var(--cc-height, <default>)` at each usage site
+ * rather than declared here. Declaring it on :host would set the property ON
+ * this element, which beats any value an ancestor inherits down — so a
+ * consumer setting --cc-height would be silently ignored. The fallback form
+ * keeps the default while leaving the property genuinely overridable.
+ */
+:host {
+  display: block;
+}
+
+.column-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* ── Legend ─────────────────────────────────────────────────────────────── */
+
+.cc-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cc-legend-item {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8125rem;
+  /* Text tokens, never the series colour — a light hue is illegible as text. */
+  color: var(--content-muted);
+  transition: opacity 0.15s ease;
+}
+
+.cc-swatch {
+  height: 0.625rem;
+  width: 0.625rem;
+  flex-shrink: 0;
+  border-radius: 999px;
+}
+
+/* ── Body ───────────────────────────────────────────────────────────────── */
+
+.cc-body {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.cc-axis {
+  position: relative;
+  width: 2.75rem;
+  height: var(--cc-height, 13.75rem);
+  flex-shrink: 0;
+}
+
+.cc-axis-tick {
+  position: absolute;
+  right: 0;
+  /* Centre the label on its gridline rather than hanging it below. */
+  transform: translateY(50%);
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--content-faint);
+  white-space: nowrap;
+}
+
+.cc-plot-wrap {
+  position: relative;
+  min-width: 0;
+  flex: 1;
+  height: var(--cc-height, 13.75rem);
+}
+
+.cc-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.cc-gridline {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--border-soft);
+}
+
+.cc-plot {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: stretch;
+  gap: 0.5rem;
+}
+
+.cc-group {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+.cc-columns {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: flex-end;
+  justify-content: center;
+  /*
+   * The surface gap. White does the separating between touching columns — never
+   * a stroke, which would add ink that isn't data.
+   */
+  gap: 2px;
+}
+
+.cc-slot {
+  position: relative;
+  height: 100%;
+  min-width: 0;
+  /* Cap the mark; let the slot's leftover width be air. */
+  max-width: 1.5rem;
+  flex: 1;
+  transition: opacity 0.15s ease;
+}
+
+.cc-column {
+  position: absolute;
+  left: 0;
+  right: 0;
+  /* 4px rounded data-end, square where it meets the baseline. */
+  border-radius: 4px 4px 0 0;
+  /* A zero-value column still needs to be visible as a zero, not absent. */
+  min-height: 2px;
+  transition: height 0.25s var(--ease-out);
+}
+
+.cc-column-negative {
+  border-radius: 0 0 4px 4px;
+}
+
+.cc-value {
+  position: absolute;
+  left: 50%;
+  transform: translate(-50%, -0.25rem);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--content-muted);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.cc-x-label {
+  overflow: hidden;
+  padding-top: 0.4rem;
+  text-align: center;
+  font-size: 0.6875rem;
+  color: var(--content-faint);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Motion is decoration here; the value is already in the DOM. */
+@media (prefers-reduced-motion: reduce) {
+  .cc-column {
+    transition: none;
+  }
+}

@@ -1,0 +1,174 @@
+/*
+ * Line chart. SVG carries the geometry; markers and labels are HTML on top, so
+ * they stay round and crisp under the SVG's non-uniform scale.
+ *
+ * Mark specs follow the shared chart anatomy: 2px lines with round joins, a
+ * ~10% area wash, markers of at least 8px carrying a 2px surface ring, and
+ * hairline recessive gridlines.
+ */
+
+/*
+ * Plot height is read as `var(--lc-height, <default>)` at each usage site
+ * rather than declared here — declaring it on :host would beat any value an
+ * ancestor inherits down, making the property look overridable while silently
+ * ignoring the override. See column-chart.css for the same note.
+ */
+:host {
+  display: block;
+}
+
+.line-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* ── Legend ─────────────────────────────────────────────────────────────── */
+
+.lc-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lc-legend-item {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8125rem;
+  color: var(--content-muted);
+  transition: opacity 0.15s ease;
+}
+
+/* A short line-key rather than a dot — it reads as "this is a line". */
+.lc-key {
+  height: 0.1875rem;
+  width: 0.875rem;
+  flex-shrink: 0;
+  border-radius: 999px;
+}
+
+/* ── Body ───────────────────────────────────────────────────────────────── */
+
+.lc-body {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.lc-axis {
+  position: relative;
+  width: 2.75rem;
+  height: var(--lc-height, 13.75rem);
+  flex-shrink: 0;
+}
+
+.lc-axis-tick {
+  position: absolute;
+  right: 0;
+  transform: translateY(50%);
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--content-faint);
+  white-space: nowrap;
+}
+
+.lc-plot-wrap {
+  position: relative;
+  min-width: 0;
+  flex: 1;
+  height: var(--lc-height, 13.75rem);
+}
+
+.lc-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.lc-gridline {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--border-soft);
+}
+
+.lc-svg {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  width: 100%;
+  overflow: visible;
+}
+
+/* A wash, never a saturated block — the line is the mark, not the fill. */
+.lc-area {
+  opacity: 0.1;
+}
+
+.lc-overlay {
+  position: absolute;
+  inset: 0;
+}
+
+.lc-series-overlay {
+  position: absolute;
+  inset: 0;
+  transition: opacity 0.15s ease;
+}
+
+.lc-dot {
+  position: absolute;
+  height: 0.5rem;
+  width: 0.5rem;
+  transform: translate(-50%, 50%);
+  border-radius: 999px;
+  /*
+   * The surface ring. Keeps a marker legible where it crosses another line or
+   * overlaps a neighbour, and widens the hover target past the 8px mark.
+   */
+  box-shadow: 0 0 0 2px var(--lc-surface, var(--surface));
+  cursor: default;
+}
+
+.lc-end-label {
+  position: absolute;
+  transform: translate(0.5rem, 50%);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  /* Text tokens, never the series colour — the marker beside it carries identity. */
+  color: var(--content-muted);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* ── Category axis ──────────────────────────────────────────────────────── */
+
+.lc-x-axis {
+  display: flex;
+  justify-content: space-between;
+  /* Clear the value axis so the first label sits under the first point. */
+  padding-left: 3.25rem;
+  gap: 0.5rem;
+}
+
+.lc-x-label {
+  overflow: hidden;
+  font-size: 0.6875rem;
+  color: var(--content-faint);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * Hidden, not removed: the flex row still needs the slot so the surviving
+ * labels stay aligned with the points they name.
+ */
+.lc-x-hidden {
+  visibility: hidden;
+}

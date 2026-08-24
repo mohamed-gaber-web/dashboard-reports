@@ -1,0 +1,133 @@
+:host {
+  display: block;
+}
+
+.msg {
+  display: flex;
+  gap: 0.625rem;
+}
+
+.msg-avatar {
+  display: grid;
+  height: 1.625rem;
+  width: 1.625rem;
+  flex-shrink: 0;
+  place-items: center;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--color-brand-500), var(--color-brand-600));
+  color: var(--content-on-brand);
+}
+
+.msg-avatar svg {
+  height: 0.875rem;
+  width: 0.875rem;
+}
+
+.msg-body {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.msg-text {
+  margin: 0;
+  /* Keeps the model's own paragraph breaks without any markup being parsed. */
+  white-space: pre-wrap;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--content);
+}
+
+/*
+ * The report sheet. One surface holding every component, so a reply reads as a
+ * single artefact rather than a stack of loose cards.
+ */
+.msg-report {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-2xl);
+  background: var(--surface-muted);
+  padding: 0.875rem;
+}
+
+.msg-provenance {
+  margin: 0;
+  font-size: 0.6875rem;
+  line-height: 1.4;
+  color: var(--content-faint);
+}
+
+.msg-dropped {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0;
+  border-left: 2px solid var(--warning);
+  padding: 0.25rem 0 0.25rem 0.625rem;
+  list-style: none;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--content-muted);
+}
+
+/* ── Suggestion chips ───────────────────────────────────────────────────── */
+
+.msg-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.chip {
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  padding: 0.3rem 0.7rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--content-muted);
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease,
+    background-color 0.15s ease,
+    transform 0.12s var(--ease-out);
+}
+
+.chip:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--color-brand-400) 55%, var(--border-strong));
+  background: color-mix(in srgb, var(--color-brand-500) 7%, var(--surface));
+  color: var(--color-brand-600);
+}
+
+.chip:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.chip:focus-visible {
+  outline: 2px solid var(--color-brand-400);
+  outline-offset: 2px;
+}
+
+.chip:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.dark .chip:hover:not(:disabled) {
+  color: var(--color-brand-200);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chip {
+    transition: none;
+  }
+  .chip:hover:not(:disabled) {
+    transform: none;
+  }
+}

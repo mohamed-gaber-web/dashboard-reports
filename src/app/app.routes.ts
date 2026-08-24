@@ -48,6 +48,14 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'ai/chat-reports',
+        title: 'Chat Reports',
+        loadComponent: () =>
+          import('./features/chat-reports/pages/chat-reports/chat-reports').then(
+            (m) => m.ChatReportsComponent,
+          ),
+      },
+      {
         path: 'settings',
         title: 'Settings',
         loadComponent: () =>

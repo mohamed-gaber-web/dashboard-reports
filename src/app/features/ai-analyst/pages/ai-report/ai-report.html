@@ -104,6 +104,19 @@
     </div>
 
     <!--
+      Which model answers. Sits beside the source picker because the two
+      together are the whole answer to "what is about to happen when I ask a
+      question": this data, that model. It renders nothing when only one
+      provider is configured.
+    -->
+    <app-provider-switch
+      [providers]="model.aiProviders()"
+      [selected]="model.aiProviderId()"
+      [busy]="model.busy()"
+      (selectedChange)="model.setAiProvider($event)"
+    />
+
+    <!--
       One export control. Document exports need only something to say — an
       analysis with no computed report is still a legitimate brief — so the two
       groups are gated separately inside the menu rather than by showing and

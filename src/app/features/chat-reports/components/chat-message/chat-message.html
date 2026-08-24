@@ -1,0 +1,68 @@
+<div class="msg">
+  <span class="msg-avatar" aria-hidden="true">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+      <path
+        d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+    </svg>
+  </span>
+
+  <div class="msg-body">
+    <!--
+      Interpolation, never [innerHTML]. This string is model-authored and
+      therefore untrusted; {{ }} escapes it, and `white-space: pre-wrap` in the
+      stylesheet keeps the paragraph breaks the model wrote (NG-SEC-01).
+    -->
+    @if (payload().text_response) {
+      <p class="msg-text">{{ payload().text_response }}</p>
+    }
+
+    @if (hasReport()) {
+      <div class="msg-report">
+        <app-dynamic-report-renderer
+          [components]="payload().components"
+          [templateType]="payload().template_type"
+        />
+
+        <!--
+          Provenance. These figures were written by the model from real
+          aggregates, not recomputed by the app — say so where the numbers are,
+          not in a tooltip somewhere else.
+        -->
+        <p class="msg-provenance">
+          @if (groundedRows() !== null) {
+            AI-stated figures, grounded in {{ groundedRows()!.toLocaleString() }} live rows.
+          } @else {
+            AI-stated figures — no dataset was attached to this answer.
+          }
+        </p>
+      </div>
+    }
+
+    <!-- Anything the reply asked for that could not be rendered as sent. -->
+    @if (dropped().length) {
+      <ul class="msg-dropped" role="note">
+        @for (note of dropped(); track $index) {
+          <li>{{ note }}</li>
+        }
+      </ul>
+    }
+
+    @if (hasActions()) {
+      <div class="msg-chips">
+        @for (action of payload().suggested_actions; track action) {
+          <button
+            type="button"
+            class="chip"
+            [disabled]="!actionsEnabled()"
+            (click)="select(action)"
+          >
+            {{ action }}
+          </button>
+        }
+      </div>
+    }
+  </div>
+</div>

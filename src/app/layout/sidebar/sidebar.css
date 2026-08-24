@@ -16,7 +16,7 @@
   height: 100%;
   width: 16rem;
   padding: 1.15rem 0.75rem 1rem;
-  color: #fff;
+  color: var(--content-on-brand);
   background:
     radial-gradient(
       22rem 16rem at 12% -4%,
@@ -80,7 +80,7 @@
  */
 .nav-link:hover {
   background-color: rgba(255, 255, 255, 0.08);
-  color: #fff;
+  color: var(--content-on-brand);
   transform: translateX(2px);
 }
 
@@ -100,7 +100,7 @@
 
 .nav-link.is-active {
   background-color: rgba(255, 255, 255, 0.13);
-  color: #fff;
+  color: var(--content-on-brand);
   font-weight: 600;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.09);
 }
@@ -200,7 +200,7 @@
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: #fff;
+  color: var(--content-on-brand);
 }
 
 /* ── Footer ─────────────────────────────────────────────────────────────── */

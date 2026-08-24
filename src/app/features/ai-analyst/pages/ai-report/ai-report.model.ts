@@ -2,6 +2,7 @@ import { Injectable, DestroyRef, computed, inject, signal } from '@angular/core'
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { filter, forkJoin, map, of, switchMap, tap } from 'rxjs';
 import { environment } from '../../../../../environments/environment';
+import { AiProviderId, AiProviderService } from '../../../../core/ai/ai-provider.service';
 import { Cube, MAX_ANALYZE_ROWS } from '../../../../core/aggregation/aggregate-plan.model';
 import { SliceTooLargeError } from '../../../../core/aggregation/aggregation.service';
 import { and, SearchField } from '../../../../core/http/odata-filter.util';
@@ -119,7 +120,26 @@ export class AiReportModel {
   private readonly chat = inject(ChatApiService);
   private readonly exporter = inject(ExportService);
   private readonly branding = inject(BrandingService);
+  private readonly aiProvider = inject(AiProviderService);
   private readonly destroyRef = inject(DestroyRef);
+
+  // ── Model picker ─────────────────────────────────────────────────────────
+  // Passed straight through from the app-wide service. The View binds to its
+  // Model and to nothing else (NG-ARCH-03), and the selection is deliberately
+  // NOT owned here: it is a property of the app, so switching provider on this
+  // screen switches it on Chat Reports too.
+  readonly aiProviders = this.aiProvider.providers;
+  readonly aiProviderId = this.aiProvider.selected;
+
+  /**
+   * Switching mid-conversation is safe and needs no reset: the history is prose,
+   * and `lastSpec` — the report on screen — is a Report Spec the app compiles
+   * itself, not provider-specific output. The next answer simply comes from the
+   * other model, and it can still be asked to change the existing report.
+   */
+  setAiProvider(id: AiProviderId): void {
+    this.aiProvider.select(id);
+  }
 
   readonly sources: AnalystSource[] = [
     {
@@ -450,9 +470,12 @@ export class AiReportModel {
                 this.busy.set(false);
               },
             },
-            signal,
-            // What the model is looking at, so "change it" has a subject.
-            this.lastSpec,
+            {
+              provider: this.aiProvider.selected(),
+              // What the model is looking at, so "change it" has a subject.
+              currentReport: this.lastSpec,
+              signal,
+            },
           );
         },
         error: () => {

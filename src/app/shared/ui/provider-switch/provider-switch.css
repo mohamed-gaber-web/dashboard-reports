@@ -1,0 +1,31 @@
+/*
+  Only what `.segment` / `.seg` in styles.css do not already cover: the caption,
+  and the one state a picker needs that a plain segmented control does not — an
+  option with no key configured.
+*/
+
+.provider-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+/* The eyebrow. Without it a bare "Claude | Gemini" pair in a toolbar full of
+   other controls does not say what it selects. */
+.provider-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--content-muted);
+  white-space: nowrap;
+}
+
+/* An unconfigured provider stays readable — it is information, not noise. The
+   reason is on the title attribute, which is why the option keeps its place and
+   the cursor says "not allowed" instead of the control quietly getting shorter. */
+.seg:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
