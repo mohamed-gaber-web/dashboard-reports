@@ -1,0 +1,71 @@
+<button
+  type="button"
+  class="sp-trigger"
+  [class.sp-trigger-open]="open()"
+  [disabled]="disabled()"
+  (click)="toggle($event)"
+  (keydown)="onTriggerKeydown($event)"
+  [attr.aria-expanded]="open()"
+  aria-haspopup="listbox"
+>
+  <app-icon [path]="icons.database" [size]="15" />
+  <span class="sp-trigger-text">
+    <!-- The label alone reads as a random noun in a toolbar; the eyebrow names it. -->
+    <span class="sp-eyebrow">{{ label() }}</span>
+    <span class="sp-label">{{ current()?.label }}</span>
+  </span>
+  <span class="sp-chevron" [class.sp-chevron-open]="open()">
+    <app-icon [path]="icons.chevronDown" [size]="14" />
+  </span>
+</button>
+
+@if (open()) {
+  <div class="sp-menu" role="listbox" [attr.aria-label]="label()" (keydown)="onMenuKeydown($event)">
+    <!-- Says what the popup is a list of, which the trigger's eyebrow cannot do
+         once the menu covers it. -->
+    <p class="sp-menu-title">{{ label() }}</p>
+
+    @if (showSearch()) {
+      <div class="sp-search">
+        <app-icon [path]="icons.search" [size]="14" />
+        <input
+          type="text"
+          class="sp-search-input"
+          placeholder="Search"
+          [attr.aria-label]="'Search ' + label()"
+          [value]="query()"
+          (input)="onSearch($event)"
+        />
+      </div>
+    }
+
+    <div class="sp-list">
+      @for (option of visible(); track option.id) {
+        <button
+          type="button"
+          role="option"
+          class="sp-item"
+          [class.sp-item-active]="option.id === selected()"
+          [attr.aria-selected]="option.id === selected()"
+          (click)="choose(option.id)"
+        >
+          <span class="sp-item-text">
+            <span class="sp-item-label">{{ option.label }}</span>
+            @if (option.description) {
+              <span class="sp-item-desc">{{ option.description }}</span>
+            }
+          </span>
+          @if (option.id === selected()) {
+            <app-icon [path]="icons.check" [size]="15" />
+          } @else {
+            <!-- Holds the tick's column so labels do not shift by 15px when the
+                 selection moves from one row to another. -->
+            <span class="sp-item-spacer" aria-hidden="true"></span>
+          }
+        </button>
+      } @empty {
+        <p class="sp-empty">Nothing matches that search.</p>
+      }
+    </div>
+  </div>
+}

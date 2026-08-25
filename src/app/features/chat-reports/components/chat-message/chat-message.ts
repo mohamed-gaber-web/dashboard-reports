@@ -1,6 +1,8 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 import { DynamicReportRendererComponent } from '../dynamic-report-renderer/dynamic-report-renderer';
+import { ExportMenuComponent } from '../export-menu/export-menu';
 import { ReportPayload } from '../../models/report-payload.model';
+import { ChatReportExportFormat } from '../../services/chat-report-export.service';
 
 /**
  * One assistant turn: the prose bubble, the report embedded inside it, and the
@@ -16,7 +18,7 @@ import { ReportPayload } from '../../models/report-payload.model';
  */
 @Component({
   selector: 'app-chat-message',
-  imports: [DynamicReportRendererComponent],
+  imports: [DynamicReportRendererComponent, ExportMenuComponent],
   templateUrl: './chat-message.html',
   styleUrl: './chat-message.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -40,6 +42,15 @@ export class ChatMessageComponent {
 
   /** A chip was clicked. Its text is sent verbatim as the next user message. */
   readonly actionSelected = output<string>();
+
+  /**
+   * The user asked to take this reply away.
+   *
+   * Emitted rather than handled here because building the document needs things
+   * this component has no business knowing — which module the figures came from,
+   * the question that produced them, the app's brand name. The page owns those.
+   */
+  readonly exportRequested = output<ChatReportExportFormat>();
 
   protected readonly hasReport = computed(() => this.payload().components.length > 0);
   protected readonly hasActions = computed(() => this.payload().suggested_actions.length > 0);

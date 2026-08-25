@@ -1,0 +1,12 @@
+.rb-prose {
+  max-width: 68ch;
+  font-size: 0.9rem;
+  line-height: 1.65;
+  color: var(--color-content);
+}
+
+.rb-prose-lede {
+  font-size: var(--rb-lede-size, 1.02rem);
+  line-height: 1.6;
+  color: var(--color-muted);
+}

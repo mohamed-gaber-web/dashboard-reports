@@ -1,0 +1,224 @@
+/*
+ * Fixed-width whatever the list holds — see the component doc for why this is a
+ * menu rather than a segmented control.
+ */
+:host {
+  position: relative;
+  display: inline-block;
+}
+
+/* A control you pick from, so it sits on --border-strong like the other inputs. */
+.sp-trigger {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 11.5rem;
+  border-radius: 0.7rem;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  padding: 0.4rem 0.6rem;
+  color: var(--content);
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+.sp-trigger:hover:not(:disabled) {
+  border-color: var(--color-brand-400);
+  background: var(--surface-muted);
+}
+.sp-trigger:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+.sp-trigger:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.sp-trigger-open {
+  border-color: var(--color-brand-400);
+  background: var(--surface-muted);
+}
+.sp-trigger > app-icon {
+  color: var(--color-brand-400);
+  flex-shrink: 0;
+}
+
+.sp-trigger-text {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.15;
+}
+
+.sp-eyebrow {
+  font-size: 0.5875rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--content-faint);
+}
+
+.sp-label {
+  max-width: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.sp-chevron {
+  display: inline-flex;
+  margin-left: auto;
+  color: var(--content-faint);
+  transition: transform 0.2s var(--ease-out);
+}
+.sp-chevron-open {
+  transform: rotate(180deg);
+}
+
+.sp-menu {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 0.4rem);
+  z-index: 40;
+  width: 20rem;
+  max-width: min(20rem, calc(100vw - 2rem));
+  padding: 0.35rem;
+  border-radius: 0.85rem;
+  border: 1px solid var(--border-soft);
+  background: var(--surface);
+  box-shadow: var(--shadow-xl);
+  animation: sp-menu-in 0.16s var(--ease-out) both;
+}
+
+/*
+ * Its own keyframe, not the AI Analyst's `menu-in`. That one is declared inside
+ * `ai-report.css`, which is only loaded while that lazy route is active — a
+ * shared component borrowing it would animate on one screen and snap open on
+ * every other.
+ */
+@keyframes sp-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sp-menu {
+    animation: none;
+  }
+  .sp-chevron {
+    transition: none;
+  }
+}
+
+.sp-menu-title {
+  padding: 0.4rem 0.55rem 0.35rem;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--content-faint);
+}
+
+.sp-search {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-bottom: 0.25rem;
+  border-bottom: 1px solid var(--border-soft);
+  padding: 0.3rem 0.55rem 0.45rem;
+  color: var(--content-faint);
+}
+
+.sp-search-input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  font-size: 0.8125rem;
+  color: var(--content);
+}
+.sp-search-input:focus {
+  outline: none;
+}
+.sp-search-input::placeholder {
+  color: var(--content-faint);
+}
+
+/* Caps the menu at roughly six rows; past that it scrolls rather than running
+   off the viewport, which is the whole point of moving off a tab strip. */
+.sp-list {
+  max-height: 19rem;
+  overflow-y: auto;
+}
+
+.sp-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  border-radius: 0.55rem;
+  padding: 0.5rem 0.55rem;
+  text-align: left;
+  color: var(--content);
+  cursor: pointer;
+  transition: background-color 0.13s ease;
+}
+.sp-item:hover {
+  background-color: var(--surface-muted);
+}
+.sp-item:focus-visible {
+  outline: none;
+  background-color: var(--surface-muted);
+  box-shadow: var(--ring);
+}
+.sp-item app-icon {
+  margin-left: auto;
+  flex-shrink: 0;
+  color: var(--color-brand-400);
+}
+
+.sp-item-active {
+  background-color: color-mix(in srgb, var(--color-brand-400) 10%, transparent);
+}
+
+.sp-item-text {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.sp-item-label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.sp-item-desc {
+  font-size: 0.6875rem;
+  line-height: 1.45;
+  color: var(--content-faint);
+}
+
+/* Reserves the tick's column so rows do not shift when the selection moves. */
+.sp-item-spacer {
+  width: 15px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.sp-empty {
+  padding: 0.85rem 0.6rem;
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--content-faint);
+}

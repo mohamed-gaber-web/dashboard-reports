@@ -1,0 +1,107 @@
+:host {
+  display: block;
+}
+
+/*
+ * Comparison cards get a surface of their own, unlike the stat row above them.
+ * A comparison carries four facts (now, then, the change, the direction) where
+ * a stat carries one, so it needs an enclosure to say where one metric ends and
+ * the next begins.
+ */
+.cmp-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: 0.75rem;
+}
+
+.cmp {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.3rem;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-xl);
+  background: color-mix(in srgb, var(--surface-muted) 40%, transparent);
+  padding: 0.75rem 0.85rem;
+}
+
+.cmp-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--content-faint);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.cmp-figures {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.4rem 0.6rem;
+}
+
+.cmp-current {
+  font-size: var(--rp-stat-size, 1.4rem);
+  font-weight: 650;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--content);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+/*
+ * The delta chip. Neutral by default — see the component doc: colouring every
+ * rise green asserts that up is good, which is false for half the measures in
+ * this app. `data-sentiment` only becomes good/bad when the spec said so.
+ */
+.cmp-delta {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 0.2rem;
+  border-radius: 9999px;
+  border: 1px solid var(--border-soft);
+  background: var(--surface);
+  padding: 0.1rem 0.45rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--content-muted);
+  white-space: nowrap;
+}
+
+.cmp-delta[data-direction='flat'] {
+  color: var(--content-faint);
+}
+
+.cmp-delta[data-sentiment='good'] {
+  border-color: color-mix(in srgb, var(--success) 26%, transparent);
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+  color: var(--success);
+}
+
+.cmp-delta[data-sentiment='bad'] {
+  border-color: color-mix(in srgb, var(--danger) 26%, transparent);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  color: var(--danger);
+}
+
+.cmp-baseline {
+  font-size: 0.6875rem;
+  line-height: 1.5;
+  color: var(--content-muted);
+  text-wrap: pretty;
+}
+
+.cmp-period {
+  font-weight: 600;
+  color: var(--content);
+}
+
+.cmp-abs {
+  color: var(--content-faint);
+}

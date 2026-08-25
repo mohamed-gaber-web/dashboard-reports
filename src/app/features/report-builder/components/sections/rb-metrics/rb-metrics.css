@@ -1,0 +1,43 @@
+/*
+  Density arrives as an INHERITED custom property from `.rb-sheet`. Emulated
+  encapsulation rewrites every selector to require this component's own
+  attribute, so a parent class cannot reach in here — an inherited variable is
+  the only channel, and it keeps "what minimal means" defined in one place.
+*/
+.rb-stats {
+  display: grid;
+  gap: var(--rb-stat-gap, 0.75rem);
+}
+
+.rb-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: var(--rb-stat-pad, 0.7rem) var(--rb-stat-pad-x, 0.9rem);
+  border-inline-start: 3px solid var(--color-chart-1);
+  border-radius: 0.5rem;
+  background: var(--color-surface-muted);
+}
+
+.rb-stat-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
+.rb-stat-value {
+  font-size: var(--rb-stat-size, 1.6rem);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--color-content);
+  font-variant-numeric: tabular-nums;
+}
+
+.rb-stat-note {
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: var(--color-muted);
+}

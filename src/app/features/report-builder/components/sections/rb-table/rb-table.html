@@ -1,0 +1,22 @@
+<!--
+  `bare` because the sheet already provides the surface — a bordered table inside
+  a bordered sheet draws two lines a pixel apart. `sortable` because the columns
+  are the model's choice but the reading order is the user's.
+-->
+<app-data-table
+  [columns]="table().columns"
+  [rows]="table().displayRows"
+  [maxHeight]="maxHeight()"
+  [bare]="true"
+  [zebra]="true"
+  [sortable]="true"
+  emptyMessage="No rows match this report’s filter."
+/>
+
+@if (truncated()) {
+  <p class="rb-table-cap">
+    Showing the first <strong class="tabular-nums">{{ shown().toLocaleString() }}</strong> of
+    <strong class="tabular-nums">{{ table().total.toLocaleString() }}</strong> matching rows. Every
+    figure above is computed over all of them — use Export → Full CSV for the rows themselves.
+  </p>
+}

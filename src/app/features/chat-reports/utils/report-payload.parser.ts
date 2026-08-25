@@ -2,6 +2,7 @@ import {
   ChartComponentSpec,
   ChartDataset,
   ChartType,
+  HtmlDocumentComponentSpec,
   KpiGridComponentSpec,
   KpiItem,
   ReportComponent,
@@ -45,6 +46,12 @@ const LIMITS = {
   tableHeaders: 12,
   tableRows: 200,
   text: 2000,
+  /**
+   * A whole designed document — inline CSS and inline SVG included — so it is
+   * two orders of magnitude larger than any other string here. Still bounded:
+   * this is the DoS guard, not a style guide.
+   */
+  htmlDocument: 200_000,
 } as const;
 
 type Dict = Record<string, unknown>;
@@ -163,6 +170,30 @@ function parseTable(raw: Dict): TableComponentSpec | null {
   return rows.length ? { type: 'table', title: str(raw['title'], 160), headers, rows } : null;
 }
 
+/**
+ * The Executive style's whole report, as markup.
+ *
+ * Deliberately NOT sanitised here. It is rendered inside a fully-restricted
+ * `<iframe sandbox>` — no scripts, opaque origin — and that frame is the trust
+ * boundary. Stripping tags on the way in would only break the `<style>` block
+ * and the inline SVG the document is made of, while adding nothing: a `<script>`
+ * that cannot execute is inert markup.
+ *
+ * The one thing enforced is the size cap, which is a resource guard rather than
+ * a security one.
+ */
+function parseHtmlDocument(raw: Dict): HtmlDocumentComponentSpec | null {
+  const html = typeof raw['html'] === 'string' ? raw['html'].trim() : '';
+  if (!html) return null;
+
+  const title = str(raw['title'], 160);
+  return {
+    type: 'html_document',
+    html: html.slice(0, LIMITS.htmlDocument),
+    ...(title ? { title } : {}),
+  };
+}
+
 function parseComponent(raw: unknown): ReportComponent | null {
   if (!isDict(raw)) return null;
   switch (raw['type']) {
@@ -172,6 +203,8 @@ function parseComponent(raw: unknown): ReportComponent | null {
       return parseChart(raw);
     case 'table':
       return parseTable(raw);
+    case 'html_document':
+      return parseHtmlDocument(raw);
     default:
       return null;
   }

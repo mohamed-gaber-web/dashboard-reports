@@ -13,6 +13,7 @@
  */
 
 const { isProviderId } = require('./ai-provider');
+const { REPORT_STYLES } = require('./report-contract');
 
 const LIMITS = {
   /** Conversation turns kept. Older turns are dropped from the front. */
@@ -26,7 +27,8 @@ const LIMITS = {
 const ROLES = ['user', 'assistant'];
 
 /**
- * @returns {{ok: true, value: {messages: Array, dataContext: object|null, provider: string|null}}
+ * @returns {{ok: true, value: {messages: Array, dataContext: object|null,
+ *            provider: string|null, style: string}}
  *          | {ok: false, error: string}}
  */
 function validateChatRequest(body) {
@@ -83,7 +85,12 @@ function validateChatRequest(body) {
   // `isProviderId` is the closed-enum check, so nothing else can reach through.
   const provider = isProviderId(body.provider) ? body.provider : null;
 
-  return { ok: true, value: { messages, dataContext, provider } };
+  // Which shape of reply to ask for. Same rule as `provider`, for the same
+  // reason: a closed enum, and an unrecognised value degrades to the default
+  // rather than failing a request that is otherwise perfectly valid.
+  const style = REPORT_STYLES.includes(body.style) ? body.style : 'standard';
+
+  return { ok: true, value: { messages, dataContext, provider, style } };
 }
 
 module.exports = { validateChatRequest, LIMITS };

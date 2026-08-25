@@ -1,38 +1,23 @@
 import { Injectable, DestroyRef, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { filter, forkJoin, map, of, switchMap, tap } from 'rxjs';
-import { environment } from '../../../../../environments/environment';
 import { AiProviderId, AiProviderService } from '../../../../core/ai/ai-provider.service';
 import { Cube, MAX_ANALYZE_ROWS } from '../../../../core/aggregation/aggregate-plan.model';
 import { SliceTooLargeError } from '../../../../core/aggregation/aggregation.service';
-import { and, SearchField } from '../../../../core/http/odata-filter.util';
-import {
-  SALES_LINE_SELECT_FIELDS,
-  SALES_SELECT_FIELDS,
-} from '../../../sales-order/models/sales-order.model';
-import {
-  SHATAT_SEARCH_FIELDS,
-  SHATAT_SERIAL_TRANS_SELECT,
-} from '../../../shatat/models/shatat-serial-trans.model';
+import { and } from '../../../../core/http/odata-filter.util';
+import { ANALYST_SOURCES } from '../../analyst-sources';
 import { AnalystDataService } from '../../services/analyst-data.service';
 import { ChatApiService } from '../../services/chat-api.service';
 import { DataContextService } from '../../services/data-context.service';
 import { BrandingService } from '../../../../core/branding/branding.service';
 import { DocumentContext, ExportService, ExportTooLargeError } from '../../services/export.service';
 import { ReportEngineService, TABLE_DISPLAY_LIMIT } from '../../services/report-engine.service';
+import { planReport } from '../../services/report-plan';
 import { SpecCompilerService } from '../../services/spec-compiler.service';
 import { AnalystFilter, AnalystSource } from '../../models/analyst-source.model';
 import { Analysis, DocumentFormat } from '../../models/analysis.model';
 import { ChatMessage } from '../../models/chat-message.model';
 import { DEFAULT_DESIGN, ReportResult, ReportSpec } from '../../models/report-spec.model';
-import { SALES_ORDER_DATE_FIELD, SALES_ORDER_FIELDS } from '../../sales-order-fields';
-import { SHATAT_DATE_FIELD, SHATAT_SERIAL_TRANS_FIELDS } from '../../shatat-serial-trans-fields';
-import {
-  PURCHASE_ORDER_DATE_FIELD,
-  PURCHASE_ORDER_FIELDS,
-  PURCHASE_ORDER_SEARCH_FIELDS,
-  PURCHASE_ORDER_SELECT,
-} from '../../purchase-order-fields';
 
 /**
  * ViewModel for the AI Analyst page.
@@ -57,60 +42,6 @@ import {
  * 3. **Counts, dates and tables never need the fold** — they are native OData and
  *    stay instant at full 11M scale.
  */
-/** D365 rejects a bare string on an enum — the literal has to be type-qualified. */
-const BACKORDER = "Microsoft.Dynamics.DataEntities.SalesStatus'Backorder'";
-
-/**
- * The Sales Order tab's query descriptor, derived from `environment.salesOrder`.
- *
- * A source is either **composite** (Growpath's `GP_SalesHeaderAndLineData`, which
- * carries the header columns as `SalesTable_*`) or **split** (Shatat, where those
- * columns live on a separate entity). The analyst issues single-entity queries and
- * cannot join, so on a split source it sees the LINE half only — and the
- * `SalesTable_*` fields are withheld from the schema rather than advertised and
- * then 400'd by D365. `SalesOrderService` still joins them for the report screens;
- * this narrowing applies to the chat tab alone.
- */
-const SALES_ORDER_SOURCE = (() => {
-  const cfg = environment.salesOrder;
-  const company = `dataAreaId eq '${cfg.company}'`;
-  const composite = !cfg.headerEntity;
-
-  if (composite) {
-    return {
-      entity: cfg.lineEntity,
-      fields: SALES_ORDER_FIELDS,
-      select: SALES_SELECT_FIELDS,
-      dateField: SALES_ORDER_DATE_FIELD,
-      baseFilter:
-        `${company} and RemainInventPhysical gt 0 ` +
-        `and SalesTable_SalesStatus eq ${BACKORDER} and SalesStatus eq ${BACKORDER}`,
-      searchFields: [
-        { field: 'SalesId', mode: 'prefix' },
-        { field: 'ItemId', mode: 'prefix' },
-        { field: 'CustAccount', mode: 'prefix' },
-        { field: 'SalesTable_SalesName', mode: 'contains' },
-      ] as SearchField[],
-    };
-  }
-
-  return {
-    entity: cfg.lineEntity,
-    fields: SALES_ORDER_FIELDS.filter((f) => !f.key.startsWith('SalesTable_')),
-    select: SALES_LINE_SELECT_FIELDS,
-    // The composite's delivery date is a header column; the line's own requested
-    // ship date is the nearest equivalent the split source can window on.
-    dateField: 'ShippingDateRequested',
-    baseFilter: `${company} and RemainInventPhysical gt 0 and SalesStatus eq ${BACKORDER}`,
-    searchFields: [
-      { field: 'SalesId', mode: 'prefix' },
-      { field: 'ItemId', mode: 'prefix' },
-      { field: 'CustAccount', mode: 'prefix' },
-      { field: 'Name', mode: 'contains' },
-    ] as SearchField[],
-  };
-})();
-
 @Injectable()
 export class AiReportModel {
   private readonly data = inject(AnalystDataService);
@@ -141,78 +72,13 @@ export class AiReportModel {
     this.aiProvider.select(id);
   }
 
-  readonly sources: AnalystSource[] = [
-    {
-      id: 'sales-order',
-      label: 'Sales Order',
-      description: 'Open backorder lines with remaining physical inventory',
-      fields: SALES_ORDER_SOURCE.fields,
-      suggestions: [
-        'Summarise the open backorders',
-        'Show units remaining by customer',
-        'Break down lines by currency as a donut',
-        'Which items have the most backorder quantity?',
-      ],
-      entity: SALES_ORDER_SOURCE.entity,
-      dataPath: environment.salesOrder.source.dataPath,
-      authConfig: environment.salesOrder.source.auth,
-      crossCompany: environment.salesOrder.source.crossCompany,
-      baseFilter: SALES_ORDER_SOURCE.baseFilter,
-      keyField: ['SalesId', 'LineNum'],
-      select: SALES_ORDER_SOURCE.select,
-      searchFields: SALES_ORDER_SOURCE.searchFields,
-      dateField: SALES_ORDER_SOURCE.dateField,
-      currencyField: 'CurrencyCode',
-    },
-    {
-      id: 'transaction',
-      label: 'Transaction',
-      description: 'Serial number transactions by site, warehouse and item',
-      fields: SHATAT_SERIAL_TRANS_FIELDS,
-      suggestions: [
-        'Total quantity and amount by transaction type',
-        'Show amount by item as a bar chart',
-        'Which sites have the most transactions?',
-        'Break down transactions by warehouse',
-      ],
-      entity: 'Sha_SerialTrans',
-      dataPath: environment.shatat.dataPath,
-      authConfig: environment.shatat.auth,
-      crossCompany: true,
-      baseFilter: `dataAreaId eq '${environment.shatat.company}'`,
-      keyField: ['SerialTransRecId'],
-      select: SHATAT_SERIAL_TRANS_SELECT,
-      searchFields: SHATAT_SEARCH_FIELDS,
-      dateField: SHATAT_DATE_FIELD,
-      // Shatat has no currency column. The old engine hardcoded `CurrencyCode`
-      // and so scanned the whole dataset to find nothing.
-      currencyField: undefined,
-    },
-    {
-      id: 'purchase-order',
-      label: 'Purchase Order',
-      description: 'Purchase order headers by vendor, status, site and terms',
-      fields: PURCHASE_ORDER_FIELDS,
-      // A header entity has no amounts, so every suggestion here counts orders
-      // rather than totalling them — see purchase-order-fields.ts.
-      suggestions: [
-        'How many purchase orders per vendor?',
-        'Break down orders by status as a donut',
-        'Which receiving sites have the most orders?',
-        'Count orders by currency and approval status',
-      ],
-      entity: 'PurchaseOrderHeadersV2',
-      dataPath: environment.shatat.dataPath,
-      authConfig: environment.shatat.auth,
-      crossCompany: true,
-      baseFilter: `dataAreaId eq '${environment.shatat.company}'`,
-      keyField: ['PurchaseOrderNumber'],
-      select: PURCHASE_ORDER_SELECT,
-      searchFields: PURCHASE_ORDER_SEARCH_FIELDS,
-      dateField: PURCHASE_ORDER_DATE_FIELD,
-      currencyField: 'CurrencyCode',
-    },
-  ];
+  /**
+   * The modules this screen can analyse.
+   *
+   * Defined once in `analyst-sources.ts` and shared with the AI Report Builder —
+   * a module is a property of the application, not of one page's ViewModel.
+   */
+  readonly sources: readonly AnalystSource[] = ANALYST_SOURCES;
 
   private readonly _activeId = signal(this.sources[0].id);
   readonly activeId = this._activeId.asReadonly();
@@ -261,6 +127,15 @@ export class AiReportModel {
 
   readonly ready = computed(() => this.rowCount() !== null && !this.dataError());
   readonly hasReport = computed(() => this.result() !== null);
+  /**
+   * Whether the report contains detail rows.
+   *
+   * The full-CSV export is built from the table's columns, and a report is no
+   * longer guaranteed to have one — "top 10 items" comes back as a ranking and
+   * nothing else. Without this the menu offered a download that silently did
+   * nothing.
+   */
+  readonly hasDetailTable = computed(() => !!this.result()?.table);
   readonly hasAnalysis = computed(() => this.analysis() !== null);
   /** A document needs something to show; a bare heading is not a report. */
   readonly canExportDocument = computed(() => this.hasReport() || this.hasAnalysis());
@@ -506,7 +381,10 @@ export class AiReportModel {
     // user's broader slice.
     this.lastReportFilter = effective;
 
-    const needsCube = this.specNeedsCube(spec);
+    // Ask the planner, not the raw spec: a report is a list of sections now, and
+    // only some of them need the fold. A count-only answer stays instant even
+    // at 11M rows, which is the whole reason `$count` is queried first.
+    const needsCube = planReport(spec, source).needsCube;
 
     // The spec's filters have no AnalystFilter representation, so the effective
     // `$filter` is queried directly.
@@ -565,13 +443,6 @@ export class AiReportModel {
           );
         },
       });
-  }
-
-  /** Counts alone never need a fold — `$count` is exact and free at any scale. */
-  private specNeedsCube(spec: ReportSpec): boolean {
-    const kpiNeedsSum = (spec.kpis ?? []).some((k) => k.agg !== 'count');
-    const hasCharts = (spec.charts ?? []).length > 0;
-    return kpiNeedsSum || hasCharts;
   }
 
   /** A cube with no totals — used when a report needs none, or couldn't have them. */
@@ -660,6 +531,7 @@ export class AiReportModel {
       title: analysis?.headline ?? 'Analysis',
       design: DEFAULT_DESIGN,
       rowCount: this.rowCount() ?? 0,
+      blocks: [],
       kpis: [],
       charts: [],
     };

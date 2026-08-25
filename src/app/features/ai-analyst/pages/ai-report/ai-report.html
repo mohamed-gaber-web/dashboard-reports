@@ -161,11 +161,19 @@
                 <span class="flex-1 text-left">Excel</span>
                 <span class="export-note">This report</span>
               </button>
-              <button type="button" role="menuitem" class="export-item" (click)="runExport('csv')">
-                <app-icon [path]="icons.excel" [size]="15" />
-                <span class="flex-1 text-left">Full CSV</span>
-                <span class="export-note">Every row</span>
-              </button>
+              <!--
+                Only when the report actually has detail rows. A report can now
+                be a ranking and nothing else, and the CSV is built from the
+                table's columns — offering it there was a download that silently
+                did nothing.
+              -->
+              @if (model.hasDetailTable()) {
+                <button type="button" role="menuitem" class="export-item" (click)="runExport('csv')">
+                  <app-icon [path]="icons.excel" [size]="15" />
+                  <span class="flex-1 text-left">Full CSV</span>
+                  <span class="export-note">Every row</span>
+                </button>
+              }
             }
           </div>
         }

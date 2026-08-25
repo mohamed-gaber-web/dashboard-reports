@@ -32,7 +32,7 @@
         <svg class="lc-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
           @for (s of plotted(); track s.label) {
             <g [style.opacity]="opacity(s.index)">
-              @if (s.area) {
+              @if (area() && s.area) {
                 <path [attr.d]="s.area" [attr.fill]="s.color" class="lc-area" />
               }
               <polyline

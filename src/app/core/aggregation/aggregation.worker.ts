@@ -51,19 +51,25 @@ function post(msg: WorkerResponse): void {
 }
 
 async function run(plan: AggregatePlan): Promise<void> {
+  const dateDimensions = plan.dateDimensions ?? [];
+
   const cube: Cube = {
     filter: plan.filter,
     builtAt: Date.now(),
     rowsFolded: 0,
     totalRows: plan.totalRows,
     totals: Object.fromEntries(plan.measures.map((m) => [m, { sum: 0, count: 0 } as MeasureTotal])),
-    dims: Object.fromEntries(plan.dimensions.map((d) => [d, {} as Record<string, GroupTotal>])),
+    dims: Object.fromEntries(
+      [...plan.dimensions, ...dateDimensions].map((d) => [d, {} as Record<string, GroupTotal>]),
+    ),
   };
 
   // Only the columns the fold actually reads, plus the sort key. This is the
   // difference between ~1 MB and ~7.5 MB per page — measured — and it is why a
   // 250k-row slice costs ~25 MB rather than ~190 MB.
-  const select = [...new Set([...plan.keyField, ...plan.dimensions, ...plan.measures])].join(',');
+  const select = [
+    ...new Set([...plan.keyField, ...plan.dimensions, ...dateDimensions, ...plan.measures]),
+  ].join(',');
 
   const pageCount = Math.ceil(plan.totalRows / PAGE_SIZE);
   const skips = Array.from({ length: pageCount }, (_, i) => i * PAGE_SIZE);
@@ -122,6 +128,8 @@ async function fetchPage(
 
 /** Fold one page into the cube, then let it be garbage-collected. */
 function foldPage(rows: Record<string, unknown>[], plan: AggregatePlan, cube: Cube): void {
+  const dateDimensions = plan.dateDimensions ?? [];
+
   for (const row of rows) {
     for (const m of plan.measures) {
       const v = toNumber(row[m]);
@@ -133,20 +141,49 @@ function foldPage(rows: Record<string, unknown>[], plan: AggregatePlan, cube: Cu
     }
 
     for (const d of plan.dimensions) {
-      const key = String(row[d] ?? '').trim() || '—';
-      const bucket = cube.dims[d];
-      let g = bucket[key];
-      if (!g) {
-        g = { count: 0, sums: Object.fromEntries(plan.measures.map((m) => [m, 0])) };
-        bucket[key] = g;
-      }
-      g.count += 1;
-      for (const m of plan.measures) {
-        const v = toNumber(row[m]);
-        if (v !== null) g.sums[m] += v;
-      }
+      accumulate(cube.dims[d], String(row[d] ?? '').trim() || '—', row, plan);
+    }
+
+    for (const d of dateDimensions) {
+      const key = dayKey(row[d]);
+      // No date, or D365's "unset" sentinel. Skipped rather than bucketed: a
+      // 1900 spike at the head of a trend line is a worse lie than a gap.
+      if (key) accumulate(cube.dims[d], key, row, plan);
     }
   }
+}
+
+/** Add one row to `bucket[key]`, creating the group's accumulators on first sight. */
+function accumulate(
+  bucket: Record<string, GroupTotal>,
+  key: string,
+  row: Record<string, unknown>,
+  plan: AggregatePlan,
+): void {
+  let g = bucket[key];
+  if (!g) {
+    g = { count: 0, sums: Object.fromEntries(plan.measures.map((m) => [m, 0])) };
+    bucket[key] = g;
+  }
+  g.count += 1;
+  for (const m of plan.measures) {
+    const v = toNumber(row[m]);
+    if (v !== null) g.sums[m] += v;
+  }
+}
+
+/**
+ * The calendar day a D365 date value falls on, as `YYYY-MM-DD`.
+ *
+ * The values arrive as ISO strings (`2016-12-30T12:00:00Z`), so the first ten
+ * characters ARE the UTC day — no Date parsing, which matters in a loop that
+ * runs once per row per date field over up to 250,000 rows.
+ */
+function dayKey(value: unknown): string | null {
+  if (typeof value !== 'string' || value.length < 10) return null;
+  const day = value.slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return null;
+  return day.slice(0, 4) <= '1900' ? null : day;
 }
 
 function toNumber(v: unknown): number | null {

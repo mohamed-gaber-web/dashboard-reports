@@ -10,7 +10,17 @@ import { ReportPayload } from './report-payload.model';
  */
 export type ChatTurn =
   | { role: 'user'; content: string }
-  | { role: 'assistant'; payload: ReportPayload };
+  | { role: 'assistant'; payload: ReportPayload }
+  /**
+   * A marker the app writes, not a message anyone sent.
+   *
+   * It exists because the slice can change mid-conversation: every figure above
+   * the marker was computed for a different set of rows. Wiping the transcript
+   * instead would be data loss over a date change, and leaving it unmarked would
+   * put two incompatible sets of numbers in one scroll with nothing between them.
+   * Never sent on the wire — see `ChatReportsModel.history()`.
+   */
+  | { role: 'notice'; content: string };
 
 /** The wire shape `/api/chat-report` expects for conversation history. */
 export interface ChatApiMessage {

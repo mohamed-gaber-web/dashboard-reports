@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   ElementRef,
+  computed,
   effect,
   inject,
   signal,
@@ -9,7 +10,10 @@ import {
 } from '@angular/core';
 import { PageHeaderComponent } from '../../../../shared/ui/page-header/page-header';
 import { ProviderSwitchComponent } from '../../../../shared/ui/provider-switch/provider-switch';
+import { SourcePickerComponent } from '../../../../shared/ui/source-picker/source-picker';
 import { ChatMessageComponent } from '../../components/chat-message/chat-message';
+import { SliceFilterComponent } from '../../components/slice-filter/slice-filter';
+import { isReportStyle } from '../../models/report-style.model';
 import { ChatReportsModel } from './chat-reports.model';
 
 /**
@@ -25,7 +29,13 @@ import { ChatReportsModel } from './chat-reports.model';
  */
 @Component({
   selector: 'app-chat-reports',
-  imports: [PageHeaderComponent, ChatMessageComponent, ProviderSwitchComponent],
+  imports: [
+    PageHeaderComponent,
+    ChatMessageComponent,
+    ProviderSwitchComponent,
+    SourcePickerComponent,
+    SliceFilterComponent,
+  ],
   providers: [ChatReportsModel],
   templateUrl: './chat-reports.html',
   styleUrl: './chat-reports.css',
@@ -43,6 +53,20 @@ export class ChatReportsComponent {
     stop: 'M6 6h12v12H6z',
     alert: 'M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z',
   };
+
+  /**
+   * What the box says when you cannot type in it.
+   *
+   * A disabled input with its normal prompt still in it reads as broken. Each
+   * reason the composer is closed is a different problem with a different fix,
+   * so each one says which.
+   */
+  protected readonly composerPlaceholder = computed(() => {
+    if (this.model.canChat()) return `Ask about ${this.model.source().label}…`;
+    if (this.model.contextError()) return 'Data unavailable — retry above to start asking';
+    if (this.model.noRows()) return 'No rows match this filter — widen it to start asking';
+    return `Reading ${this.model.source().label} data…`;
+  });
 
   constructor() {
     // Follow the transcript as it grows. Reading the signals here is what
@@ -65,6 +89,15 @@ export class ChatReportsComponent {
   protected onAction(action: string): void {
     if (this.model.busy()) return;
     this.model.send(action);
+  }
+
+  /**
+   * The shared picker emits a plain id, so the closed union is re-established
+   * here rather than cast — the Model's setter refuses anything else, and this
+   * keeps the View from being the place a bad value gets in.
+   */
+  protected onStyle(id: string): void {
+    if (isReportStyle(id)) this.model.setStyle(id);
   }
 
   protected onKeydown(event: KeyboardEvent): void {

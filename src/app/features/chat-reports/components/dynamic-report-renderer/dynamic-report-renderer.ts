@@ -2,8 +2,10 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
 import { KpiGridComponent } from '../kpi-grid/kpi-grid';
 import { ChartWidgetComponent } from '../chart-widget/chart-widget';
 import { DynamicTableComponent } from '../dynamic-table/dynamic-table';
+import { HtmlDocumentComponent } from '../html-document/html-document';
 import {
   ChartComponentSpec,
+  HtmlDocumentComponentSpec,
   KpiGridComponentSpec,
   ReportComponent,
   TableComponentSpec,
@@ -28,7 +30,7 @@ import {
  */
 @Component({
   selector: 'app-dynamic-report-renderer',
-  imports: [KpiGridComponent, ChartWidgetComponent, DynamicTableComponent],
+  imports: [KpiGridComponent, ChartWidgetComponent, DynamicTableComponent, HtmlDocumentComponent],
   templateUrl: './dynamic-report-renderer.html',
   styleUrl: './dynamic-report-renderer.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -65,5 +67,9 @@ export class DynamicReportRendererComponent {
 
   protected asTable(component: ReportComponent): TableComponentSpec {
     return component as TableComponentSpec;
+  }
+
+  protected asHtmlDocument(component: ReportComponent): HtmlDocumentComponentSpec {
+    return component as HtmlDocumentComponentSpec;
   }
 }

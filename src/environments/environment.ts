@@ -95,4 +95,27 @@ export const environment = {
     lineEntity: 'SalesLineBiEntities',
     headerEntity: 'SalesTableBiEntities' as string | undefined,
   },
+
+  /**
+   * The general-ledger module behind the Executive financial report.
+   *
+   * **`enabled` is false until the entity is confirmed against the tenant.**
+   * Entity names are not portable between F&O environments and a wrong one is an
+   * opaque 400, so this module stays out of both AI pickers rather than shipping
+   * a source that fails the first time someone selects it. To turn it on:
+   *
+   *   node scripts/probe-entity.js --search journal
+   *   node scripts/probe-entity.js --entity GeneralJournalAccountEntries --company 003
+   *
+   * Set `entity` to what the first command found, correct the column list in
+   * `features/ai-analyst/trial-balance-fields.ts` against the second, then flip
+   * `enabled`. The report itself needs no further change — the module reaches
+   * both AI screens from the shared source list.
+   */
+  trialBalance: {
+    enabled: false,
+    source: SHATAT,
+    company: '003',
+    entity: 'GeneralJournalAccountEntries',
+  },
 };

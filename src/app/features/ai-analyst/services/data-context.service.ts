@@ -1,8 +1,9 @@
 import { Injectable } from '@angular/core';
-import { Cube } from '../../../core/aggregation/aggregate-plan.model';
+import { Cube, GroupTotal } from '../../../core/aggregation/aggregate-plan.model';
 import { AnalystSource } from '../models/analyst-source.model';
 import { FieldMeta } from '../models/field-meta.model';
 import { DateBounds } from './analyst-data.service';
+import { rollUp } from './time-buckets';
 
 type Row = Record<string, unknown>;
 
@@ -64,6 +65,9 @@ export class DataContextService {
     }
 
     if (cube) {
+      const dateFields = new Set(source.fields.filter((f) => f.type === 'date').map((f) => f.key));
+      const measures = source.fields.filter((f) => f.measure).map((f) => f.key);
+
       for (const [field, total] of Object.entries(cube.totals)) {
         summary[`sum_${field}`] = round(total.sum);
         summary[`avg_${field}`] = total.count ? round(total.sum / total.count) : 0;
@@ -71,6 +75,18 @@ export class DataContextService {
 
       for (const [field, groups] of Object.entries(cube.dims)) {
         const entries = Object.entries(groups);
+
+        // A date dimension is folded by day, so ranking it "top 5 by count"
+        // would spend the model's context on five arbitrary Tuesdays. What it
+        // actually needs to answer "why did this fall?" is the recent shape of
+        // the series, so it gets a monthly trend instead.
+        if (dateFields.has(field)) {
+          const trend = monthlyTrend(groups, measures);
+          if (trend.length) summary[`monthly_${field}`] = trend;
+          summary[`days_with_data_${field}`] = entries.length;
+          continue;
+        }
+
         summary[`distinct_${field}`] = entries.length;
 
         const top = entries
@@ -101,6 +117,29 @@ export class DataContextService {
       coverage: cube ? 'exact' : 'pending',
     };
   }
+}
+
+/** How many months of history the model is shown. A year reads a seasonal shape. */
+const TREND_MONTHS = 12;
+
+/**
+ * The last twelve months of a date dimension, as rows and measure totals.
+ *
+ * This is the evidence behind a question like "why did sales drop?". Without it
+ * the model can see the total and the top customers but has no view of the
+ * series over time, so it can only say *that* something changed, never *when*.
+ * Every figure here is folded from real rows, so quoting one is grounded.
+ */
+function monthlyTrend(
+  groups: Record<string, GroupTotal>,
+  measures: string[],
+): Record<string, unknown>[] {
+  const { buckets } = rollUp(groups, 'month', measures);
+  return buckets.slice(-TREND_MONTHS).map((b) => {
+    const row: Record<string, unknown> = { month: b.key, rows: b.count };
+    for (const m of measures) row[`sum_${m}`] = round(b.sums[m] ?? 0);
+    return row;
+  });
 }
 
 function project(row: Row, fields: FieldMeta[]): Row {

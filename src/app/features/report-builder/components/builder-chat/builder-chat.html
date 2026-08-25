@@ -1,0 +1,158 @@
+<div class="bc" [class.bc-collapsed]="collapsed()">
+  <header class="bc-head">
+    <span class="bc-head-mark">
+      <app-icon [path]="icons.sparkle" [size]="14" />
+    </span>
+    <span class="bc-head-title">Conversation</span>
+
+    @if (busy() && stage() !== 'idle') {
+      <span class="bc-stage">
+        <span class="bc-stage-dot" aria-hidden="true"></span>
+        {{ stageLabel(stage()) }}
+      </span>
+    }
+
+    <button
+      type="button"
+      class="bc-collapse"
+      (click)="toggleCollapsed()"
+      [attr.aria-expanded]="!collapsed()"
+      [attr.aria-label]="collapsed() ? 'Show conversation' : 'Hide conversation'"
+    >
+      <span class="bc-chevron" [class.bc-chevron-up]="collapsed()">
+        <app-icon [path]="icons.chevron" [size]="15" />
+      </span>
+    </button>
+  </header>
+
+  @if (!collapsed()) {
+    <div class="bc-scroll" #scroller>
+      @if (!messages().length && !streaming()) {
+        <div class="bc-intro">
+          <p class="bc-intro-text">
+            Ask anything about this module in plain language. The AI decides what the report should
+            contain; every figure in it is computed here from Dynamics 365.
+          </p>
+          @if (suggestions().length) {
+            <div class="bc-chips">
+              @for (suggestion of suggestions(); track suggestion) {
+                <button
+                  type="button"
+                  class="bc-chip"
+                  [disabled]="disabled() || busy()"
+                  (click)="ask(suggestion)"
+                >
+                  {{ suggestion }}
+                </button>
+              }
+            </div>
+          }
+        </div>
+      }
+
+      @for (turn of messages(); track $index) {
+        <article class="bc-turn" [class.bc-turn-user]="turn.role === 'user'">
+          @if (turn.role === 'user') {
+            <!-- Shown as typed. Never parsed, never rendered as markup. -->
+            <p class="bc-bubble bc-bubble-user">{{ turn.content }}</p>
+          } @else {
+            <div class="bc-assistant">
+              <!--
+                Markdown, escaped before any markup is emitted and then bound with
+                [innerHTML] so Angular's sanitiser runs as a second layer. The
+                `.prose-chat` styles live in src/styles.css, NOT here: emulated
+                encapsulation would leave innerHTML-inserted elements unmatched.
+              -->
+              <div class="bc-bubble prose-chat" [innerHTML]="renderBody(turn.content)"></div>
+
+              <div class="bc-turn-actions">
+                @if (turn.producedReport) {
+                  <span class="bc-built">
+                    <app-icon [path]="icons.report" [size]="12" />
+                    Built the report above
+                  </span>
+                }
+                <button
+                  type="button"
+                  class="bc-mini"
+                  (click)="copy(turn.content, $index)"
+                  [attr.aria-label]="'Copy reply'"
+                >
+                  <app-icon [path]="copiedIndex() === $index ? icons.check : icons.copy" [size]="12" />
+                  {{ copiedIndex() === $index ? 'Copied' : 'Copy' }}
+                </button>
+              </div>
+            </div>
+          }
+        </article>
+      }
+
+      @if (streaming(); as partial) {
+        <article class="bc-turn">
+          <div class="bc-bubble prose-chat" [innerHTML]="renderBody(partial)"></div>
+        </article>
+      }
+
+      @if (busy() && !streaming()) {
+        <!--
+          The stage line, repeated where the answer will appear. The header chip
+          is easy to miss when the eye is already at the bottom of the thread.
+        -->
+        <article class="bc-turn">
+          <p class="bc-thinking">
+            <span class="bc-stage-dot" aria-hidden="true"></span>
+            {{ stageLabel(stage()) || 'Working…' }}
+          </p>
+        </article>
+      }
+
+      @if (error(); as message) {
+        <div class="bc-error" role="alert">
+          <app-icon [path]="icons.alert" [size]="14" />
+          <span class="flex-1">{{ message }}</span>
+          <button type="button" class="bc-mini" (click)="retry.emit()" [disabled]="busy()">
+            <app-icon [path]="icons.retry" [size]="12" />
+            Retry
+          </button>
+        </div>
+      }
+    </div>
+  }
+
+  <form class="bc-composer" (submit)="$event.preventDefault(); submit()">
+    <textarea
+      class="bc-input"
+      rows="1"
+      [value]="draft()"
+      (input)="onInput($event)"
+      (keydown)="onKeydown($event)"
+      [disabled]="disabled()"
+      [attr.placeholder]="
+        disabled()
+          ? 'Waiting for the module…'
+          : 'Ask anything about this data — or say how to change the report'
+      "
+      aria-label="Message"
+    ></textarea>
+
+    @if (busy()) {
+      <button type="button" class="bc-send bc-send-stop" (click)="stop.emit()" aria-label="Stop">
+        <app-icon [path]="icons.stop" [size]="15" />
+      </button>
+    } @else {
+      <button
+        type="submit"
+        class="bc-send"
+        [disabled]="disabled() || !draft().trim()"
+        aria-label="Send"
+      >
+        <app-icon [path]="icons.send" [size]="16" />
+      </button>
+    }
+  </form>
+
+  <!-- A disabled control has to say why, next to itself. -->
+  @if (disabled() && disabledReason()) {
+    <p class="bc-blocked">{{ disabledReason() }}</p>
+  }
+</div>

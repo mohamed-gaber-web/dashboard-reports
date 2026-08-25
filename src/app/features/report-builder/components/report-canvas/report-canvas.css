@@ -1,0 +1,178 @@
+/*
+  DENSITY AND LAYOUT LIVE HERE, AS CUSTOM PROPERTIES, AND NOWHERE ELSE.
+
+  Emulated encapsulation rewrites every selector to require its own component's
+  attribute, so `.rb-sheet[data-density='minimal'] .rb-stat-value` could never
+  reach a child component's element. An INHERITED custom property is the only
+  channel that crosses that boundary — and it also means "what minimal means" is
+  one block of declarations rather than nine `compact` booleans threaded through
+  nine component APIs.
+*/
+.rb-sheet {
+  --rb-gap: 1.5rem;
+  --rb-pad: 1.35rem;
+  --rb-stat-size: 1.6rem;
+  --rb-stat-gap: 0.75rem;
+  --rb-stat-pad: 0.7rem;
+  --rb-stat-pad-x: 0.9rem;
+  --rb-row-pad: 0.55rem;
+  --rb-lede-size: 1.02rem;
+
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--color-border-soft);
+  border-radius: var(--radius-2xl);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+/* "Say less" also means "take less room": fewer figures deserve tighter rhythm. */
+.rb-sheet[data-density='minimal'] {
+  --rb-gap: 1.05rem;
+  --rb-pad: 1.05rem;
+  --rb-stat-size: 1.4rem;
+  --rb-stat-gap: 0.55rem;
+  --rb-stat-pad: 0.55rem;
+  --rb-stat-pad-x: 0.75rem;
+  --rb-row-pad: 0.4rem;
+  --rb-lede-size: 0.95rem;
+}
+
+.rb-sheet[data-density='detailed'] {
+  --rb-gap: 1.9rem;
+  --rb-pad: 1.6rem;
+  --rb-row-pad: 0.65rem;
+}
+
+/* An executive report is read at a distance: bigger headline figures. */
+.rb-sheet[data-layout='executive'] {
+  --rb-stat-size: 1.95rem;
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────── */
+
+.rb-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: var(--rb-pad) var(--rb-pad) calc(var(--rb-pad) * 0.7);
+  border-bottom: 1px solid var(--color-border-soft);
+}
+
+.rb-head-text {
+  min-width: 0;
+}
+
+.rb-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  color: var(--color-content);
+}
+
+.rb-sheet[data-layout='executive'] .rb-title {
+  font-size: 1.35rem;
+}
+
+.rb-subtitle {
+  margin-top: 0.15rem;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--color-muted);
+}
+
+.rb-rows {
+  flex: none;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: var(--color-surface-muted);
+  font-size: 0.72rem;
+  color: var(--color-muted);
+}
+
+.rb-summary {
+  max-width: 74ch;
+  padding: var(--rb-pad) var(--rb-pad) 0;
+  font-size: var(--rb-lede-size);
+  line-height: 1.65;
+  color: var(--color-muted);
+}
+
+/* ── Blocks ─────────────────────────────────────────────────────────────── */
+
+.rb-block {
+  padding: var(--rb-gap) var(--rb-pad);
+}
+
+.rb-block + .rb-block {
+  border-top: 1px solid var(--color-border-soft);
+}
+
+/*
+  A summary is the report's opening line, not a block — it should not be fenced
+  off from the first section by a hairline.
+*/
+.rb-summary + .rb-block {
+  border-top: none;
+}
+
+.rb-block-head {
+  margin-bottom: 0.7rem;
+}
+
+.rb-block-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
+.rb-block-note {
+  margin-top: 0.2rem;
+  max-width: 74ch;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--color-faint);
+}
+
+.rb-block-lede {
+  padding-bottom: calc(var(--rb-gap) * 0.7);
+}
+
+/* The detail table brings its own scroller; the sheet should not pad it twice. */
+.rb-block-detail {
+  padding-inline: calc(var(--rb-pad) * 0.65);
+}
+
+.rb-charts {
+  display: grid;
+  gap: 1rem;
+}
+
+/* ── Notices ────────────────────────────────────────────────────────────── */
+
+.rb-issues {
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--color-warning);
+  background: color-mix(in srgb, var(--color-warning) 8%, transparent);
+}
+
+.rb-empty {
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: var(--color-muted);
+}
+
+.rb-foot {
+  padding: 0.65rem var(--rb-pad);
+  border-top: 1px solid var(--color-border-soft);
+  background: var(--color-surface-muted);
+  font-size: 0.7rem;
+  color: var(--color-faint);
+}

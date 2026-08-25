@@ -72,6 +72,17 @@ export class LineChartComponent {
    */
   readonly zeroAnchored = input(true);
 
+  /**
+   * Fill beneath each line.
+   *
+   * This is the whole difference between a line chart and an area chart: a line
+   * says "how it moved", a filled area says "how much there was". Defaulted ON
+   * so every existing caller keeps the wash it was drawn with; the AI report
+   * turns it off for `line` and on for `area`, which is what makes the model's
+   * choice between them mean something on screen.
+   */
+  readonly area = input(true);
+
   protected readonly active = signal<number | null>(null);
 
   protected readonly showLegend = computed(() => this.series().length > 1);

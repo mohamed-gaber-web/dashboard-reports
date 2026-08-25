@@ -94,6 +94,7 @@ const describe = (target) =>
 console.log(`[proxy] /api/token        -> ${describe(TOKEN_TARGET)}`);
 console.log(`[proxy] /api/chat         -> ${describe(CHAT_TARGET)}`);
 console.log(`[proxy] /api/chat-report  -> ${describe(CHAT_TARGET)}`);
+console.log(`[proxy] /api/report-builder -> ${describe(CHAT_TARGET)}`);
 console.log(`[proxy] /api/ai-providers -> ${describe(CHAT_TARGET)}`);
 
 const stripBrowserOrigin = (proxy) => {
@@ -133,6 +134,18 @@ module.exports = {
    * is already the thing that keeps them apart instead of a silent misroute.
    */
   '/api/chat-report': proxyTo(CHAT_TARGET, '/api/chat-report'),
+
+  /*
+   * AI Report Builder backend — the second generative report screen.
+   *
+   * Unlike '/api/chat-report' this path is NOT a suffix of '/api/chat', so this
+   * entry is genuinely load-bearing: without it the route falls through to the
+   * dev server itself and returns index.html, which the SSE client would read as
+   * a stream of nothing. Same local/deployed decision as the other AI routes —
+   * a model key present locally means local, so edits to api/report-builder.js
+   * actually run.
+   */
+  '/api/report-builder': proxyTo(CHAT_TARGET, '/api/report-builder'),
 
   /*
    * Which providers this backend can actually use, for the model picker.

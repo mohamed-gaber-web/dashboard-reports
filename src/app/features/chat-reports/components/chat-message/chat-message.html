@@ -27,17 +27,26 @@
         />
 
         <!--
-          Provenance. These figures were written by the model from real
-          aggregates, not recomputed by the app — say so where the numbers are,
-          not in a tooltip somewhere else.
+          Provenance, and the way out of the app.
+
+          These figures were written by the model from real aggregates, not
+          recomputed by the app — said where the numbers are, not in a tooltip
+          somewhere else. Export sits on the same line because it is the same
+          subject: this is what the report is, and this is how to take it with
+          you. The exported document repeats the caveat, since the person who
+          receives it never saw this screen.
         -->
-        <p class="msg-provenance">
-          @if (groundedRows() !== null) {
-            AI-stated figures, grounded in {{ groundedRows()!.toLocaleString() }} live rows.
-          } @else {
-            AI-stated figures — no dataset was attached to this answer.
-          }
-        </p>
+        <div class="msg-foot">
+          <p class="msg-provenance">
+            @if (groundedRows() !== null) {
+              AI-stated figures, grounded in {{ groundedRows()!.toLocaleString() }} live rows.
+            } @else {
+              AI-stated figures — no dataset was attached to this answer.
+            }
+          </p>
+
+          <app-export-menu (chosen)="exportRequested.emit($event)" />
+        </div>
       </div>
     }
 

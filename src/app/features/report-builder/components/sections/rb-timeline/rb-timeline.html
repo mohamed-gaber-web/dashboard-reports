@@ -1,0 +1,34 @@
+@if (points().length) {
+  <ol class="rb-tl">
+    <li class="rb-tl-head" aria-hidden="true">
+      <span class="rb-tl-period">Period</span>
+      <span class="rb-tl-value">{{ measureLabel() }}</span>
+      <span class="rb-tl-change">vs previous</span>
+    </li>
+
+    @for (point of points(); track point.label) {
+      <li class="rb-tl-row">
+        <span class="rb-tl-period">
+          {{ point.label }}
+          <span class="rb-tl-track">
+            <span class="rb-tl-bar" [style.width.%]="point.widthPct"></span>
+          </span>
+        </span>
+
+        <span class="rb-tl-value tabular-nums">{{ point.display }}</span>
+
+        <span class="rb-tl-change" [attr.data-direction]="point.direction">
+          @if (point.changePercent !== null) {
+            <app-icon [path]="arrow(point)" [size]="12" />
+          }
+          <span class="tabular-nums">{{ change(point) }}</span>
+        </span>
+      </li>
+    }
+  </ol>
+} @else {
+  <p class="rb-tl-empty">
+    No periods to walk — this slice has no dated rows for that field. Total the rows, or widen the
+    date range.
+  </p>
+}

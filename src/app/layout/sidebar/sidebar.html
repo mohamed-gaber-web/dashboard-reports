@@ -18,10 +18,21 @@
     <span>Overview</span>
   </a>
 
+  <!--
+    AI Analyst and AI Report Builder are hidden from the nav for now.
+
+    Hidden, not removed: both routes are still registered in `app.routes.ts` and
+    both features still build and ship, so `/ai/analyst` and `/ai/report-builder`
+    remain reachable by URL. Uncomment the two blocks below to bring them back —
+    nothing else needs changing, and `aiIcon` / `reportBuilderIcon` are still
+    declared on the component for exactly that reason.
+  -->
+  <!--
   <a routerLink="/ai/analyst" routerLinkActive="is-active" (click)="navigate.emit()" class="nav-link">
     <app-icon [path]="aiIcon" [size]="18" />
     <span class="flex-1">AI Analyst</span>
   </a>
+  -->
 
   <a
     routerLink="/ai/chat-reports"
@@ -31,8 +42,20 @@
   >
     <app-icon [path]="chatReportIcon" [size]="18" />
     <span class="flex-1">Chat Reports</span>
+  </a>
+
+  <!--
+  <a
+    routerLink="/ai/report-builder"
+    routerLinkActive="is-active"
+    (click)="navigate.emit()"
+    class="nav-link"
+  >
+    <app-icon [path]="reportBuilderIcon" [size]="18" />
+    <span class="flex-1">AI Report Builder</span>
     <span class="nav-badge">New</span>
   </a>
+  -->
 
   <p class="nav-section">Modules</p>
 

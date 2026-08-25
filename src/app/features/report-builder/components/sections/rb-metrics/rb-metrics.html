@@ -1,0 +1,11 @@
+<div class="rb-stats" [class]="columns()">
+  @for (metric of items(); track $index) {
+    <div class="rb-stat" [style.borderInlineStartColor]="accent($index)">
+      <span class="rb-stat-label">{{ metric.label }}</span>
+      <span class="rb-stat-value">{{ metric.value }}</span>
+      @if (metric.note; as note) {
+        <span class="rb-stat-note">{{ note }}</span>
+      }
+    </div>
+  }
+</div>

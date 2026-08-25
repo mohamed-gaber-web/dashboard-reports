@@ -99,6 +99,33 @@ export class AnalystDataService {
     return this.page(source, filter, 0, rows).pipe(map((p) => p.rows));
   }
 
+  /**
+   * The same handful of rows for a literal `$filter`, **without** the `$count`
+   * a page carries.
+   *
+   * {@link page} always asks for the total, because a detail table has to say
+   * what it is a page of. A schema sample does not: the caller that wants one
+   * has invariably just counted the same slice itself, and on an 11M-row entity
+   * that second count is several seconds of dead air bought for a number
+   * already in hand.
+   */
+  sampleRaw(source: AnalystSource, filter: string, rows = 5): Observable<Row[]> {
+    return this.api
+      .getPage<Row>(
+        source.entity,
+        {
+          filter,
+          select: source.select,
+          orderby: source.keyField.map((k) => `${k} desc`).join(','),
+          top: rows,
+          count: false,
+          crossCompany: source.crossCompany,
+        },
+        source.dataPath,
+      )
+      .pipe(map((p) => p.rows));
+  }
+
   // ── Dates ────────────────────────────────────────────────────────────────
   /**
    * Oldest / newest date under a filter — two one-row queries.
@@ -152,6 +179,11 @@ export class AnalystDataService {
         crossCompany: source.crossCompany,
         keyField: source.keyField,
         dimensions: source.fields.filter((f) => f.dimension).map((f) => f.key),
+        // Every date field, bucketed by day in the same pass. This is what makes
+        // a trend line and a period-over-period comparison possible at all —
+        // D365 cannot group by month, and re-reading the slice per period would
+        // cost another full fold each time.
+        dateDimensions: source.fields.filter((f) => f.type === 'date').map((f) => f.key),
         measures: source.fields.filter((f) => f.measure).map((f) => f.key),
         totalRows,
       },

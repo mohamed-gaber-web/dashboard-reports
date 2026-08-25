@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { extractJsonObject, parseReportPayload } from './report-payload.parser';
-import { ChartComponentSpec, TableComponentSpec } from '../models/report-payload.model';
+import {
+  ChartComponentSpec,
+  HtmlDocumentComponentSpec,
+  TableComponentSpec,
+} from '../models/report-payload.model';
 
 /**
  * These cover the failure modes the parser exists for — malformed, hostile, or
@@ -235,6 +239,53 @@ describe('parseReportPayload', () => {
     it('caps the row count', () => {
       const rows = Array.from({ length: 500 }, (_, i) => [String(i), 'x']);
       expect(table({ rows })?.rows.length).toBe(200);
+    });
+  });
+
+  describe('html_document', () => {
+    const doc = (over: Record<string, unknown>) => {
+      const result = parseReportPayload({
+        ...minimal,
+        components: [{ type: 'html_document', html: '<div class="report">x</div>', ...over }],
+      });
+      return result?.components[0] as HtmlDocumentComponentSpec | undefined;
+    };
+
+    /**
+     * The whole point of this component: it carries a stylesheet and inline SVG
+     * into a sandboxed frame. A parser that "helpfully" stripped either would
+     * leave a wall of unstyled text and no charts, so these two assert that it
+     * does not.
+     */
+    it('keeps the inline style block', () => {
+      const html = '<div class="report"><style>.report{color:red}</style><h1>م</h1></div>';
+      expect(doc({ html })?.html).toBe(html);
+    });
+
+    it('keeps inline SVG', () => {
+      const html = '<div class="report"><svg viewBox="0 0 10 10"><rect width="4" height="9"/></svg></div>';
+      expect(doc({ html })?.html).toBe(html);
+    });
+
+    it('preserves RTL markup and Arabic content verbatim', () => {
+      const html = '<div dir="rtl" lang="ar" class="report"><h2>الإيرادات</h2><p>1,234,567</p></div>';
+      expect(doc({ html })?.html).toBe(html);
+    });
+
+    it('drops a document with no html', () => {
+      expect(doc({ html: '' })).toBeUndefined();
+      expect(doc({ html: '   ' })).toBeUndefined();
+      expect(doc({ html: 42 })).toBeUndefined();
+    });
+
+    it('caps the document size', () => {
+      const html = `<div>${'x'.repeat(300_000)}</div>`;
+      expect(doc({ html })?.html.length).toBe(200_000);
+    });
+
+    it('omits title when the model sends none, rather than emitting an empty one', () => {
+      expect(doc({})?.title).toBeUndefined();
+      expect(doc({ title: 'التقرير المالي' })?.title).toBe('التقرير المالي');
     });
   });
 });

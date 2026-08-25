@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { AiProviderId } from '../../../core/ai/ai-provider.service';
 import { ChatApiMessage } from '../models/chat-turn.model';
 import { ReportPayload } from '../models/report-payload.model';
+import { ReportStyle } from '../models/report-style.model';
 import { parseReportPayload } from '../utils/report-payload.parser';
 import { ReportDataContext } from './report-context.service';
 
@@ -42,6 +43,7 @@ export class ChatReportApiService {
     messages: ChatApiMessage[],
     dataContext: ReportDataContext | null,
     provider: AiProviderId,
+    style: ReportStyle,
     signal?: AbortSignal,
   ): Promise<ChatReportResult> {
     let response: Response;
@@ -49,7 +51,10 @@ export class ChatReportApiService {
       response = await fetch('/api/chat-report', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages, dataContext, provider }),
+        // `style` selects the system prompt, exactly as `provider` selects the
+        // model: a name from a closed list, re-validated server-side, never a
+        // knob that reaches the model's instructions directly.
+        body: JSON.stringify({ messages, dataContext, provider, style }),
         signal,
       });
     } catch (err) {

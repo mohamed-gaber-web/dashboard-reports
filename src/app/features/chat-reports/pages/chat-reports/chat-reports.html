@@ -5,6 +5,37 @@
     subtitle="Ask a question and get a rendered report back in the conversation."
   >
     <!--
+      Which data the questions are about. Beside the model picker because the
+      two together are the whole answer to "what is about to happen when I ask
+      something": this dataset, that model.
+    -->
+    <app-source-picker
+      label="Data"
+      [options]="model.sources"
+      [selected]="model.sourceId()"
+      [disabled]="model.busy()"
+      (selectedChange)="model.selectSource($event)"
+    />
+
+    <!--
+      What shape the answer takes. The same picker as the source — it takes
+      {id, label, description}, which is exactly what a style option is, and
+      building a second dropdown to render three identical fields would be two
+      implementations of the same keyboard behaviour.
+
+      Beside the source rather than in the composer: it applies to the next
+      question, but so does the source, and the two together are the whole
+      answer to "what am I about to get".
+    -->
+    <app-source-picker
+      label="Style"
+      [options]="model.styles"
+      [selected]="model.style()"
+      [disabled]="model.busy()"
+      (selectedChange)="onStyle($event)"
+    />
+
+    <!--
       Which model answers. In the header rather than by the composer because it
       applies to the whole conversation, not to the next message — and it
       renders nothing when only one provider is configured.
@@ -21,17 +52,130 @@
     }
   </app-page-header>
 
-  <!-- Grounding status. Says plainly what the answers are based on. -->
-  @if (model.contextLoading()) {
-    <p class="ctx-line">Reading sales-order data&hellip;</p>
-  } @else if (model.contextError(); as err) {
+  <!--
+    Which rows the next answer may be about. Above the transcript, not tucked
+    into the composer: it describes the whole conversation, and on a large
+    module it is the control that decides whether totals are possible at all.
+  -->
+  @if (model.filterable()) {
+    <app-slice-filter
+      [spec]="model.filterSpec()"
+      [value]="model.draft()"
+      [dirty]="model.filterDirty()"
+      [active]="model.hasFilter()"
+      [disabled]="model.contextLoading()"
+      (valueChange)="model.setDraft($event)"
+      (apply)="model.applyFilter()"
+      (clear)="model.clearFilter()"
+    />
+  }
+
+  <!--
+    Grounding status. Says plainly what the answers are based on, and — while
+    that is still being worked out — exactly which step is running.
+
+    The load used to be one line of "Reading … data" covering everything from a
+    300 ms count to a minute-long fold. On the large modules that line WAS the
+    screen, and it was indistinguishable from a hang.
+  -->
+  @if (model.contextError(); as err) {
     <p class="ctx-line ctx-warn" role="status">
       {{ err }}
-      <button type="button" class="ctx-retry" (click)="model.loadContext()">Try again</button>
+      <button type="button" class="ctx-retry" (click)="model.reloadContext()">Try again</button>
+    </p>
+  } @else if (model.contextLoading()) {
+    @switch (model.phase()?.phase) {
+      @case ('counting') {
+        <p class="ctx-line" role="status">
+          <span class="ctx-spinner" aria-hidden="true"></span>
+          Counting {{ model.source().label }} rows&hellip;
+        </p>
+      }
+      @case ('reading') {
+        <p class="ctx-line" role="status">
+          <span class="ctx-spinner" aria-hidden="true"></span>
+          <strong class="tabular-nums text-content">
+            {{ (model.rowCount() ?? 0).toLocaleString() }}
+          </strong>
+          rows &mdash; reading the schema and a sample&hellip;
+        </p>
+      }
+      @case ('totalling') {
+        <!--
+          The honest wait. Totalling reads every matching row through a Worker,
+          so it is the one step whose length is a function of the data — and the
+          only one worth a progress bar, a rate and a way out.
+        -->
+        <div class="ctx-fold" role="status">
+          <div class="ctx-fold-head">
+            <span class="ctx-spinner" aria-hidden="true"></span>
+            <span class="flex-1">
+              Totalling
+              <strong class="tabular-nums text-content">
+                {{ model.foldLoaded().toLocaleString() }}
+              </strong>
+              of
+              <strong class="tabular-nums text-content">
+                {{ (model.rowCount() ?? 0).toLocaleString() }}
+              </strong>
+              rows
+            </span>
+            <span class="tabular-nums ctx-pct">{{ model.foldPercent() }}%</span>
+            <!--
+              Not a cancel: the context still completes, just without sums. A
+              user who only wants to know how many rows there are should not
+              have to sit through a fold to ask.
+            -->
+            <button type="button" class="btn-ghost btn-sm" (click)="model.skipTotals()">
+              Skip totals
+            </button>
+          </div>
+          <div class="ctx-bar" [style.--pct.%]="model.foldPercent()">
+            <span class="ctx-bar-fill"></span>
+          </div>
+        </div>
+      }
+    }
+  } @else if (model.noRows()) {
+    <!--
+      A real answer, and a different one from "still loading" — the slice is
+      valid, it just selected nothing. Said here rather than left to an empty
+      chat, because the fix is the form directly above.
+    -->
+    <p class="ctx-line ctx-warn" role="status">
+      No {{ model.source().label }} rows match this filter, so there is nothing to report on.
+      @if (model.hasFilter()) {
+        <button type="button" class="ctx-retry" (click)="model.clearFilter()">Clear filter</button>
+      }
     </p>
   } @else if (model.groundedRows(); as rows) {
     <p class="ctx-line">
-      Grounded in <strong>{{ rows.toLocaleString() }}</strong> open backorder lines from D365.
+      Grounded in <strong>{{ rows.toLocaleString() }}</strong>
+      {{ model.source().label }} rows from D365.
+      <!--
+        The honest caveat on a module too large to total. This contract has the
+        MODEL state the figures, so a user has to know the answer can only count
+        rows BEFORE they ask for a sum that cannot be given.
+      -->
+      @if (model.countsOnly()) {
+        <span class="ctx-badge">Counts only — too many rows to total</span>
+      }
+      @if (model.sliceLabel(); as slice) {
+        <span class="ctx-badge ctx-badge-slice">{{ slice }}</span>
+      }
+    </p>
+  }
+
+  <!--
+    The refusal, with the fix beside it. We know the exact size for free, so we
+    say it and point at the form rather than starting a crawl that would not
+    finish. Shown from the moment the count lands, not after the whole load.
+  -->
+  @if (model.tooLarge() && model.filterable()) {
+    <p class="ctx-note">
+      Counting works across all {{ (model.rowCount() ?? 0).toLocaleString() }} rows. Sums and
+      averages need every matching row read, so they stop at
+      {{ model.analyzeLimit.toLocaleString() }} — narrow the slice above to get totals.
     </p>
   }
 
@@ -44,34 +188,71 @@
               <path d="M3 3v18h18M7 15l3-4 3 3 4-6" stroke-linecap="round" stroke-linejoin="round" />
             </svg>
           </span>
-          <h2 class="empty-title">Ask about your sales orders</h2>
+          <h2 class="empty-title">Ask about {{ model.source().label }}</h2>
           <p class="empty-text">
             Answers come back as a report &mdash; headline numbers, charts and tables &mdash;
-            rendered right here in the conversation.
+            rendered right here in the conversation, ready to export.
           </p>
 
           <div class="starters">
-            @for (starter of model.starters; track starter) {
-              <button type="button" class="chip" (click)="onAction(starter)">{{ starter }}</button>
+            @for (starter of model.starters(); track starter) {
+              <button
+                type="button"
+                class="chip"
+                [disabled]="!model.canChat()"
+                (click)="onAction(starter)"
+              >
+                {{ starter }}
+              </button>
             }
           </div>
+
+          <!-- A disabled control has to say why, next to itself. -->
+          @if (!model.canChat()) {
+            <p class="empty-blocked">
+              @if (model.contextError()) {
+                These prompts need the data, which failed to load — retry above.
+              } @else if (model.noRows()) {
+                Nothing matches the current filter. Widen it and these unlock.
+              } @else {
+                Reading the data — the prompts unlock as soon as it lands.
+              }
+            </p>
+          }
         </div>
       }
 
       @for (turn of model.turns(); track $index; let i = $index) {
-        @if (turn.role === 'user') {
-          <div class="row row-user">
-            <div class="bubble-user">{{ turn.content }}</div>
-          </div>
-        } @else {
-          <div class="row">
-            <app-chat-message
-              [payload]="turn.payload"
-              [groundedRows]="model.groundedRows()"
-              [actionsEnabled]="i === model.latestAssistantIndex() && !model.busy()"
-              (actionSelected)="onAction($event)"
-            />
-          </div>
+        @switch (turn.role) {
+          @case ('user') {
+            <div class="row row-user">
+              <div class="bubble-user">{{ turn.content }}</div>
+            </div>
+          }
+          @case ('notice') {
+            <!--
+              The slice moved here. Every figure above this line was computed
+              over a different set of rows, and without the marker the transcript
+              would put two incompatible sets of numbers in one scroll with
+              nothing between them.
+            -->
+            <div class="notice" role="separator">
+              <span class="notice-rule" aria-hidden="true"></span>
+              <span class="notice-text">{{ turn.content }}</span>
+              <span class="notice-rule" aria-hidden="true"></span>
+            </div>
+          }
+          @default {
+            <div class="row">
+              <app-chat-message
+                [payload]="turn.payload"
+                [groundedRows]="model.groundedRows()"
+                [actionsEnabled]="i === model.latestAssistantIndex() && !model.busy()"
+                (actionSelected)="onAction($event)"
+                (exportRequested)="model.exportTurn(i, $event)"
+              />
+            </div>
+          }
         }
       }
 
@@ -95,14 +276,19 @@
       }
     </div>
 
-    <!-- Composer -->
+    <!--
+      Composer. Closed until there are real aggregates behind it: this screen's
+      guarantee is that the figures come from D365, and a question asked before
+      they land is answered by a model with nothing to ground it.
+    -->
     <div class="composer-dock">
-      <div class="composer-shell">
+      <div class="composer-shell" [class.composer-shell-locked]="!model.canChat()">
         <textarea
           rows="1"
           maxlength="2000"
-          placeholder="Ask about your sales orders&hellip;"
-          aria-label="Ask about your sales orders"
+          [disabled]="!model.canChat()"
+          [attr.placeholder]="composerPlaceholder()"
+          [attr.aria-label]="'Ask about ' + model.source().label"
           [value]="draft()"
           (input)="onInput($event)"
           (keydown)="onKeydown($event)"
@@ -119,7 +305,7 @@
           <button
             type="button"
             (click)="submit()"
-            [disabled]="!draft().trim()"
+            [disabled]="!draft().trim() || !model.canChat()"
             class="send-btn"
             aria-label="Send"
           >

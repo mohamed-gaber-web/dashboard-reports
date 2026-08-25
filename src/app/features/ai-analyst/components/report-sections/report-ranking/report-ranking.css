@@ -1,0 +1,128 @@
+:host {
+  display: block;
+}
+
+.rank-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/*
+ * Four columns: position, name (+ its bar), figure, share. `minmax(0, 1fr)` on
+ * the name is what lets a long product description truncate instead of forcing
+ * the figure columns off the right edge.
+ */
+.rank-head,
+.rank-row {
+  display: grid;
+  grid-template-columns: 1.75rem minmax(0, 1fr) auto 3rem;
+  align-items: center;
+  gap: 0.25rem 0.75rem;
+}
+
+.rank-head {
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--border-soft);
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--content-faint);
+}
+.rank-head .rank-value,
+.rank-head .rank-share {
+  text-align: right;
+}
+
+.rank-row {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border-soft);
+}
+.rank-row:last-child {
+  border-bottom: 0;
+}
+
+.rank-pos {
+  display: grid;
+  place-items: center;
+  height: 1.4rem;
+  width: 1.4rem;
+  border-radius: 0.5rem;
+  background: var(--surface-muted);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--content-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * The podium. Three is where "top of the list" stops being self-evident.
+ *
+ * A brand TINT plus the ordinary content colour, rather than brand-700 ink:
+ * the ramp is regenerated at runtime from whatever primary the user picks, and
+ * a fixed step off it is only legible against one of the two themes.
+ */
+.rank-pos-lead {
+  background: color-mix(in srgb, var(--color-brand-500) 18%, transparent);
+  color: var(--content);
+}
+
+.rank-label {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--content);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rank-track {
+  height: 4px;
+  width: 100%;
+  border-radius: 9999px;
+  background: var(--surface-muted);
+  overflow: hidden;
+}
+
+.rank-bar {
+  display: block;
+  height: 100%;
+  border-radius: 9999px;
+  transition: width 240ms ease;
+}
+
+.rank-value {
+  text-align: right;
+  font-size: 0.8125rem;
+  font-weight: 650;
+  color: var(--content);
+  white-space: nowrap;
+}
+
+.rank-share {
+  text-align: right;
+  font-size: 0.75rem;
+  color: var(--content-muted);
+  white-space: nowrap;
+}
+
+.rank-empty {
+  padding: 1.25rem 0;
+  text-align: center;
+  font-size: 0.8125rem;
+  color: var(--content-faint);
+  text-wrap: pretty;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rank-bar {
+    transition: none;
+  }
+}

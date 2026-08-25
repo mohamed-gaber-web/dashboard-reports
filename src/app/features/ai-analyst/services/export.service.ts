@@ -85,12 +85,48 @@ export class ExportService {
     const XLSX = await import('xlsx');
     const workbook = XLSX.utils.book_new();
 
-    const summary = [
+    // The summary sheet is the report's figures, whichever sections produced
+    // them. A report can now be a ranking and nothing else, or two comparison
+    // metrics — reading only `kpis` here would hand back an empty workbook for
+    // exactly the questions the ranking section was added to answer.
+    const summary: Record<string, unknown>[] = [
       { Metric: 'Report', Value: result.title },
       { Metric: 'Rows matching filter', Value: result.rowCount },
       ...result.kpis.map((k) => ({ Metric: k.label, Value: k.value })),
     ];
+
+    for (const block of result.blocks ?? []) {
+      if (block.kind !== 'comparison') continue;
+      for (const item of block.items) {
+        summary.push({
+          Metric: item.label,
+          Value: item.current,
+          [block.previousLabel]: item.previous,
+          Change: item.delta,
+          'Change %': item.deltaPercent === null ? '—' : `${item.deltaPercent}%`,
+        });
+      }
+    }
+
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(summary), 'Summary');
+
+    // One sheet per ranking. These are computed figures the user asked for by
+    // name; leaving them out would mean the workbook does not contain the answer.
+    const used = new Set(['Summary']);
+    for (const block of result.blocks ?? []) {
+      if (block.kind !== 'ranking' || !block.rows.length) continue;
+      const rows = block.rows.map((r) => ({
+        '#': r.rank,
+        Name: r.label,
+        [block.measureLabel]: r.display,
+        Share: `${r.sharePct}%`,
+      }));
+      XLSX.utils.book_append_sheet(
+        workbook,
+        XLSX.utils.json_to_sheet(rows),
+        uniqueSheetName(block.title, used),
+      );
+    }
 
     const table = result.table;
     if (table) {
@@ -111,7 +147,11 @@ export class ExportService {
       });
 
       const name = full ? 'Data' : `Sample (${table.displayLimit} of ${result.rowCount})`;
-      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(data), name.slice(0, 31));
+      XLSX.utils.book_append_sheet(
+        workbook,
+        XLSX.utils.json_to_sheet(data),
+        uniqueSheetName(name, used),
+      );
     }
 
     XLSX.writeFile(workbook, `${this.slug(result.title)}.xlsx`);
@@ -237,6 +277,22 @@ export class ExportService {
   private slug(title: string): string {
     return (title || 'report').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
   }
+}
+
+/**
+ * A legal, unused sheet name.
+ *
+ * Excel caps names at 31 characters, forbids `[]:*?/\`, and refuses a workbook
+ * with two sheets of the same name outright — and the titles here are written
+ * by a model, so all three are reachable. Truncating alone is not enough: two
+ * long ranking titles sharing a prefix collide after the cut.
+ */
+function uniqueSheetName(title: string, used: Set<string>): string {
+  const base = (title || 'Sheet').replace(/[[\]:*?/\\]/g, ' ').trim().slice(0, 31) || 'Sheet';
+  let name = base;
+  for (let i = 2; used.has(name); i++) name = `${base.slice(0, 28)} ${i}`;
+  used.add(name);
+  return name;
 }
 
 function headerOf(table: NonNullable<ReportResult['table']>, key: string): string {

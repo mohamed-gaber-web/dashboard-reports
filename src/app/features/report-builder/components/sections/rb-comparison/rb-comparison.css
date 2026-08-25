@@ -1,0 +1,79 @@
+.rb-cmp-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 0.75rem;
+}
+
+.rb-cmp {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: var(--rb-stat-pad, 0.7rem) var(--rb-stat-pad-x, 0.9rem);
+  border: 1px solid var(--color-border-soft);
+  border-radius: 0.625rem;
+  background: var(--color-surface);
+}
+
+.rb-cmp-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
+.rb-cmp-figures {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.55rem;
+}
+
+.rb-cmp-current {
+  font-size: var(--rb-stat-size, 1.6rem);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--color-content);
+}
+
+.rb-cmp-delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  background: var(--color-surface-muted);
+  font-size: 0.76rem;
+  font-weight: 600;
+  /*
+    Neutral by default, and that is the point: an unlabelled direction is not a
+    verdict. Only a definition that said which way is up earns a colour.
+  */
+  color: var(--color-muted);
+}
+
+.rb-cmp-delta[data-sentiment='good'] {
+  background: color-mix(in srgb, var(--color-success) 14%, transparent);
+  color: var(--color-success);
+}
+
+.rb-cmp-delta[data-sentiment='bad'] {
+  background: color-mix(in srgb, var(--color-danger) 14%, transparent);
+  color: var(--color-danger);
+}
+
+.rb-cmp-base {
+  font-size: 0.73rem;
+  line-height: 1.45;
+  color: var(--color-muted);
+}
+
+.rb-cmp-period {
+  font-weight: 600;
+  color: var(--color-content);
+}
+
+.rb-cmp-abs {
+  color: var(--color-faint);
+}

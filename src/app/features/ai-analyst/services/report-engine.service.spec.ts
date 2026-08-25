@@ -18,6 +18,7 @@ describe('ReportEngineService', () => {
     { key: 'CurrencyCode', label: 'Currency', type: 'string', format: 'text', dimension: true },
     { key: 'Amount', label: 'Amount', type: 'number', format: 'currency', measure: true },
     { key: 'Qty', label: 'Quantity', type: 'number', format: 'quantity', measure: true },
+    { key: 'Delivery', label: 'Delivery date', type: 'date', format: 'date' },
   ];
 
   function source(currencyField?: string): AnalystSource {
@@ -34,6 +35,7 @@ describe('ReportEngineService', () => {
       keyField: ['Id'],
       select: '',
       searchFields: [],
+      dateField: 'Delivery',
       currencyField,
     };
   }
@@ -284,5 +286,248 @@ describe('ReportEngineService', () => {
     const spec: ReportSpec = { title: 'T', kpis: [], charts: [] };
     const result = engine.compute(spec, ctx({ omitted: ['Unknown field “Ghost”.'] }));
     expect(result.omitted).toEqual(['Unknown field “Ghost”.']);
+  });
+
+  // ── Sections: the report's shape is the model's to choose ─────────────────
+  //
+  // The engine used to emit a fixed KPI/chart/table triple whatever was asked.
+  // These pin the property that replaced it: `blocks` is exactly what the spec
+  // asked for, in the order it asked, and nothing else appears.
+
+  describe('sections', () => {
+    it('emits one block per section, in the model’s order', () => {
+      const spec: ReportSpec = {
+        title: 'Why deliveries slipped',
+        sections: [
+          { type: 'text', body: 'Two sites account for most of the shortfall.' },
+          { type: 'metrics', items: [{ label: 'Lines', agg: 'count' }] },
+          { type: 'insights', points: ['Site A alone is over half.'] },
+        ],
+      };
+      const result = engine.compute(spec, ctx({ total: 42 }));
+      expect(result.blocks?.map((b) => b.kind)).toEqual(['text', 'metrics', 'list']);
+    });
+
+    it('produces NO metrics or table unless a section asked for them', () => {
+      // The old engine always emitted both. A ranking question should come back
+      // as a ranking and nothing else.
+      const spec: ReportSpec = {
+        title: 'Top sites',
+        sections: [{ type: 'ranking', title: 'Top sites', groupBy: 'Site', agg: 'count' }],
+      };
+      const result = engine.compute(spec, ctx({ cube: cube({ dims: { Site: { A: group(3) } } }) }));
+      expect(result.blocks?.map((b) => b.kind)).toEqual(['ranking']);
+      expect(result.kpis).toEqual([]);
+      expect(result.table).toBeUndefined();
+    });
+
+    it('flattens metrics and charts into the projections the exports read', () => {
+      const spec: ReportSpec = {
+        title: 'T',
+        sections: [
+          { type: 'metrics', items: [{ label: 'Lines', agg: 'count' }] },
+          { type: 'chart', title: 'By site', chartType: 'bar', groupBy: 'Site', agg: 'count' },
+          { type: 'table', columns: ['Site'] },
+        ],
+      };
+      const result = engine.compute(
+        spec,
+        ctx({ total: 7, cube: cube({ dims: { Site: { A: group(3) } } }), tableRows: [{ Site: 'A' }] }),
+      );
+      expect(result.kpis).toEqual([{ label: 'Lines', value: '7' }]);
+      expect(result.charts).toHaveLength(1);
+      expect(result.table?.total).toBe(7);
+    });
+  });
+
+  describe('ranking', () => {
+    const bySite = () =>
+      cube({
+        dims: {
+          Site: {
+            A: group(1, { Amount: 100 }),
+            B: group(1, { Amount: 60 }),
+            C: group(1, { Amount: 40 }),
+          },
+        },
+      });
+
+    it('ranks, positions and computes each row’s share of the WHOLE set', () => {
+      const spec: ReportSpec = {
+        title: 'T',
+        sections: [
+          {
+            type: 'ranking',
+            title: 'Top sites',
+            groupBy: 'Site',
+            agg: 'sum',
+            valueField: 'Amount',
+            topN: 2,
+          },
+        ],
+      };
+      const block = engine.compute(spec, ctx({ cube: bySite() })).blocks![0];
+      expect(block.kind).toBe('ranking');
+      if (block.kind !== 'ranking') return;
+
+      expect(block.rows.map((r) => [r.rank, r.label, r.sharePct])).toEqual([
+        [1, 'A', 50],
+        [2, 'B', 30],
+      ]);
+      // 100/200 and 60/200 — the denominator is every group, not the two shown,
+      // or "50% of total" would be a different and wrong claim.
+      expect(block.rows[0].widthPct).toBe(100);
+      expect(block.note).toContain('Top 2 of 3');
+      expect(block.measureLabel).toBe('Amount');
+    });
+
+    it('ranks by row count when no measure is given', () => {
+      const spec: ReportSpec = {
+        title: 'T',
+        sections: [{ type: 'ranking', title: 'Busiest', groupBy: 'Site', agg: 'count' }],
+      };
+      const c = cube({ dims: { Site: { A: group(2), B: group(8) } } });
+      const block = engine.compute(spec, ctx({ cube: c })).blocks![0];
+      if (block.kind !== 'ranking') throw new Error('expected a ranking');
+      expect(block.rows.map((r) => r.label)).toEqual(['B', 'A']);
+      expect(block.measureLabel).toBe('Rows');
+    });
+  });
+
+  describe('time series', () => {
+    const overTime = () =>
+      cube({
+        dims: {
+          Delivery: {
+            '2025-01-10': group(2, { Qty: 20 }),
+            '2025-03-10': group(4, { Qty: 40 }),
+          },
+        },
+      });
+
+    const trend = (over: Record<string, unknown> = {}): ReportSpec =>
+      ({
+        title: 'T',
+        sections: [
+          {
+            type: 'chart',
+            title: 'Lines per month',
+            chartType: 'line',
+            groupBy: 'Delivery',
+            agg: 'count',
+            grain: 'month',
+            ...over,
+          },
+        ],
+      }) as unknown as ReportSpec;
+
+    it('rolls the cube’s day buckets up to the requested grain, gaps and all', () => {
+      const chart = engine.compute(trend(), ctx({ cube: overTime() })).charts[0];
+      expect(chart.ordered).toBe(true);
+      expect(chart.data.map((d) => [d.label, d.value])).toEqual([
+        ['Jan 2025', 2],
+        ['Feb 2025', 0],
+        ['Mar 2025', 4],
+      ]);
+    });
+
+    it('carries the series form the line and column components need', () => {
+      const chart = engine.compute(trend(), ctx({ cube: overTime() })).charts[0];
+      expect(chart.labels).toEqual(['Jan 2025', 'Feb 2025', 'Mar 2025']);
+      expect(chart.series).toEqual([{ label: 'Lines per month', values: [2, 0, 4] }]);
+    });
+
+    it('sums a measure across the bucket', () => {
+      const spec = trend({ agg: 'sum', valueField: 'Qty' } as never);
+      const chart = engine.compute(spec, ctx({ cube: overTime() })).charts[0];
+      expect(chart.data.map((d) => d.value)).toEqual([20, 0, 40]);
+    });
+
+    it('colours a series once, not once per point', () => {
+      // A line is one thing measured over an axis. Stepping its points through a
+      // ramp would encode position twice and say nothing.
+      const spec = { ...trend(), design: { palette: 'brand' as const } };
+      const chart = engine.compute(spec, ctx({ cube: overTime() })).charts[0];
+      expect(chart.series![0].color).toBe(reportColor('brand', 0));
+      expect(chart.data.every((d) => d.color === undefined)).toBe(true);
+    });
+  });
+
+  describe('comparison', () => {
+    const days = () =>
+      cube({
+        dims: {
+          Delivery: {
+            '2025-01-15': group(10, { Amount: 1000 }),
+            '2025-02-15': group(10, { Amount: 1000 }),
+            '2025-05-15': group(25, { Amount: 3000 }),
+          },
+        },
+      });
+
+    const spec = (metrics: unknown[]): ReportSpec =>
+      ({
+        title: 'T',
+        sections: [
+          {
+            type: 'comparison',
+            currentLabel: 'Q2',
+            currentFrom: '2025-04-01',
+            currentTo: '2025-06-30',
+            previousLabel: 'Q1',
+            previousFrom: '2025-01-01',
+            previousTo: '2025-03-31',
+            metrics,
+          },
+        ],
+      }) as unknown as ReportSpec;
+
+    it('measures both windows from the folded day buckets', () => {
+      const block = engine.compute(spec([{ label: 'Lines', agg: 'count' }]), ctx({ cube: days() }))
+        .blocks![0];
+      if (block.kind !== 'comparison') throw new Error('expected a comparison');
+
+      expect(block.items[0]).toMatchObject({
+        current: '25',
+        previous: '20',
+        delta: '+5',
+        deltaPercent: 25,
+        direction: 'up',
+      });
+      expect(block.currentLabel).toBe('Q2');
+      expect(block.previousLabel).toBe('Q1');
+    });
+
+    it('leaves the change uncoloured unless the spec said which way is up', () => {
+      const neutral = engine.compute(spec([{ label: 'Lines', agg: 'count' }]), ctx({ cube: days() }))
+        .blocks![0];
+      if (neutral.kind !== 'comparison') throw new Error('expected a comparison');
+      expect(neutral.items[0].sentiment).toBe('neutral');
+
+      const judged = engine.compute(
+        spec([{ label: 'Lines', agg: 'count', higherIsBetter: false }]),
+        ctx({ cube: days() }),
+      ).blocks![0];
+      if (judged.kind !== 'comparison') throw new Error('expected a comparison');
+      // More backorder lines, and the spec says more is worse.
+      expect(judged.items[0].sentiment).toBe('bad');
+    });
+
+    it('reports no percentage against an empty baseline, and says why', () => {
+      const empty = cube({ dims: { Delivery: { '2025-05-15': group(5) } } });
+      const block = engine.compute(spec([{ label: 'Lines', agg: 'count' }]), ctx({ cube: empty }))
+        .blocks![0];
+      if (block.kind !== 'comparison') throw new Error('expected a comparison');
+
+      // A ratio against zero is undefined — not infinite, and not +100%.
+      expect(block.items[0].deltaPercent).toBeNull();
+      expect(block.note).toContain('No rows fall in Q1');
+    });
+
+    it('refuses the whole block, with a reason, when the slice was never totalled', () => {
+      const result = engine.compute(spec([{ label: 'Lines', agg: 'count' }]), ctx({}));
+      expect(result.blocks).toEqual([]);
+      expect(result.omitted?.[0]).toContain('totalled');
+    });
   });
 });

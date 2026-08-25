@@ -1,0 +1,150 @@
+<!--
+  The report is ONE sheet, not a scatter of cards — a padded surface with a title
+  bar and hairline-separated blocks, everything inside it plain, so no border is
+  ever drawn twice in the same place.
+
+  What is NOT fixed is the order or the mix. `rows()` is whatever the model
+  composed: it may be a sentence, three comparison metrics and a timeline, or a
+  single ranking and nothing else. Only the chrome — header, the refusals notice,
+  the provenance footer — is constant, and each of those is there because leaving
+  it out would let the report overstate itself.
+
+  Container queries, not viewport ones: the columns break on this sheet's own
+  width, which is what actually constrains the charts.
+-->
+<div
+  class="@container rb-sheet"
+  [attr.data-density]="density()"
+  [attr.data-layout]="layout()"
+>
+  <header class="rb-head">
+    <div class="rb-head-text">
+      <h2 class="rb-title">{{ report().title }}</h2>
+      @if (report().subtitle; as subtitle) {
+        <p class="rb-subtitle">{{ subtitle }}</p>
+      }
+    </div>
+
+    <span class="rb-rows">
+      <span class="tabular-nums">{{ report().rowCount.toLocaleString() }}</span> rows
+    </span>
+  </header>
+
+  <!--
+    The report's own opening. It is part of the definition rather than a separate
+    tool call, which is why it can never disagree with the sections beneath it
+    and why an exported document opens with exactly these words.
+  -->
+  @if (report().summary; as summary) {
+    <p class="rb-summary">{{ summary }}</p>
+  }
+
+  <!--
+    Anything the validator refused or rewrote — an unknown field, a line chart
+    over a nominal dimension, a slice too large to total. Shown, never dropped: a
+    report that quietly answers half the question is worse than one that says so.
+  -->
+  @if (report().issues.length) {
+    <div class="rb-block rb-issues">
+      <p class="font-medium">Some of this request couldn’t be built as asked</p>
+      <ul class="mt-1 list-disc pl-5 leading-relaxed">
+        @for (issue of report().issues; track $index) {
+          <li>{{ issue }}</li>
+        }
+      </ul>
+    </div>
+  }
+
+  @for (row of rows(); track $index) {
+    @switch (row.kind) {
+      @case ('charts') {
+        <section class="rb-block rb-charts" [class]="chartCols(row.charts.length)">
+          @for (entry of row.charts; track $index) {
+            <app-rb-chart [chart]="entry.chart" [title]="entry.title" [note]="entry.note" />
+          }
+        </section>
+      }
+
+      @default {
+        <!--
+          One section per block. The heading is optional by design: a stat row
+          captions itself, so forcing a title above it would add a line of
+          furniture that says nothing.
+        -->
+        <section
+          class="rb-block"
+          [class.rb-block-detail]="row.block.kind === 'table'"
+          [class.rb-block-lede]="row.first && row.block.kind === 'text'"
+        >
+          @if (heading(row.block); as title) {
+            <header class="rb-block-head">
+              <h3 class="rb-block-title">{{ title }}</h3>
+              @if (note(row.block); as note) {
+                <p class="rb-block-note">{{ note }}</p>
+              }
+            </header>
+          }
+
+          @switch (row.block.kind) {
+            @case ('metrics') {
+              <app-rb-metrics [items]="row.block.items" />
+            }
+            @case ('table') {
+              <app-rb-table [table]="row.block.table" [maxHeight]="tableMaxHeight()" />
+            }
+            @case ('ranking') {
+              <app-rb-ranking
+                [rows]="row.block.rows"
+                [measureLabel]="row.block.measureLabel"
+                [showBars]="row.block.showBars"
+              />
+            }
+            @case ('comparison') {
+              <app-rb-comparison
+                [items]="row.block.items"
+                [currentLabel]="row.block.currentLabel"
+                [previousLabel]="row.block.previousLabel"
+              />
+            }
+            @case ('timeline') {
+              <app-rb-timeline
+                [points]="row.block.points"
+                [measureLabel]="row.block.measureLabel"
+              />
+            }
+            @case ('text') {
+              <app-rb-narrative [body]="row.block.body" [lede]="row.first" />
+            }
+            @case ('insights') {
+              <app-rb-insights [points]="row.block.points" />
+            }
+            @case ('recommendations') {
+              <app-rb-recommendations [points]="row.block.points" />
+            }
+          }
+        </section>
+      }
+    }
+  }
+
+  <!--
+    An empty report is a real outcome, not a bug: the model can decide a question
+    needs no visuals, or every section it asked for can be refused. Saying which
+    beats an unexplained blank sheet.
+  -->
+  @if (isEmpty()) {
+    <div class="rb-block rb-empty">
+      <p>
+        Nothing could be built for this question. Try narrowing the slice with the filters above,
+        or ask for a specific breakdown — “units remaining by customer”, “orders per month”.
+      </p>
+    </div>
+  }
+
+  <!--
+    The claim the whole feature rests on, stated where the figures are.
+  -->
+  <footer class="rb-foot">
+    Composed by the AI · every figure computed from Dynamics 365, none supplied by the model
+  </footer>
+</div>

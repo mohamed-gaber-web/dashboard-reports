@@ -51,6 +51,22 @@ export interface AggregatePlan {
   keyField: string[];
   /** Fields to group by. Kept narrow — every one widens the `$select`. */
   dimensions: string[];
+  /**
+   * Date fields to group by CALENDAR DAY (`YYYY-MM-DD`).
+   *
+   * They land in {@link Cube.dims} alongside the nominal dimensions, so a trend
+   * line and a period-over-period comparison come out of the same single pass —
+   * no extra request, and no second definition of "how many rows in March".
+   *
+   * Day is the finest grain anything asks for and every coarser one (week,
+   * month, quarter, year) rolls up from it exactly. Cardinality is bounded by
+   * the number of distinct days in the slice, which is orders of magnitude
+   * smaller than the rows: a two-year window is ~730 keys.
+   *
+   * D365's `1900-01-01` null sentinel is skipped rather than bucketed — it is
+   * "no date", and a spike at the start of a trend line is worse than a gap.
+   */
+  dateDimensions?: string[];
   /** Numeric fields to sum. */
   measures: string[];
   /** From `$count`, so the worker can report real progress and page in parallel. */

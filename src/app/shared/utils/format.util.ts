@@ -27,6 +27,27 @@ export function percentOf(part: number, total: number): number {
 }
 
 /**
+ * A value that is ALREADY a percentage, written as one (`18.4` → `18.4%`).
+ *
+ * It does not multiply by 100 — the figures reaching it are growth rates and
+ * shares the app has already computed in percentage points, and a helper that
+ * silently scales its input is the reason dashboards ship "1840%".
+ */
+export function formatPercent(value: number, maximumFractionDigits = 1): string {
+  const n = new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits,
+  }).format(value ?? 0);
+  return `${n}%`;
+}
+
+/** The same, with an explicit sign — for deltas, where `+2%` and `2%` differ. */
+export function formatSignedPercent(value: number, maximumFractionDigits = 1): string {
+  const sign = value > 0 ? '+' : '';
+  return `${sign}${formatPercent(value, maximumFractionDigits)}`;
+}
+
+/**
  * Format a D365 date (ISO string) as `30 Dec 2016`. D365 uses `1900-01-01`
  * as an "unset" sentinel, which is rendered as an em dash.
  */

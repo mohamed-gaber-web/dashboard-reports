@@ -1,0 +1,90 @@
+<!--
+  One row: what to search for, over what window, and a button that commits both.
+  Everything here is conditional on the module actually supporting it — see the
+  component doc.
+-->
+<div class="slice">
+  <span class="slice-mark" aria-hidden="true">
+    <app-icon [path]="icons.filter" [size]="14" />
+  </span>
+
+  @if (showSearch()) {
+    <label class="slice-field slice-search">
+      <span class="field-label">Search</span>
+      <span class="field-wrap">
+        <span class="field-icon">
+          <app-icon [path]="icons.search" [size]="14" />
+        </span>
+        <input
+          type="search"
+          class="field field-sm field-search"
+          [value]="value().search ?? ''"
+          [disabled]="disabled()"
+          [attr.placeholder]="spec().searchPlaceholder"
+          (input)="onSearch($event)"
+          (keydown)="onKeydown($event)"
+        />
+      </span>
+    </label>
+  }
+
+  @if (showDates()) {
+    <!--
+      From and To are ONE control: a range. Two separately-labelled fields sitting
+      side by side read as two unrelated filters, and nothing says the pair
+      bracket each other. `max`/`min` are cross-bound so the two cannot be put
+      into an order that matches nothing.
+
+      The legend names the actual column. "Date range" alone hides WHICH date is
+      being filtered on a module that has several.
+    -->
+    <fieldset class="slice-field slice-range">
+      <legend class="field-label">{{ spec().dateLabel }}</legend>
+      <div class="range-row">
+        <input
+          type="date"
+          class="field field-sm"
+          [value]="value().from ?? ''"
+          [attr.max]="value().to || null"
+          [disabled]="disabled()"
+          aria-label="From date"
+          (change)="onFrom($event)"
+          (keydown)="onKeydown($event)"
+        />
+        <span class="range-dash" aria-hidden="true">–</span>
+        <input
+          type="date"
+          class="field field-sm"
+          [value]="value().to ?? ''"
+          [attr.min]="value().from || null"
+          [disabled]="disabled()"
+          aria-label="To date (included)"
+          (change)="onTo($event)"
+          (keydown)="onKeydown($event)"
+        />
+      </div>
+    </fieldset>
+  }
+
+  <div class="slice-actions">
+    <button
+      type="button"
+      class="btn-primary btn-sm"
+      [disabled]="!dirty() || disabled()"
+      (click)="apply.emit()"
+    >
+      Apply
+    </button>
+
+    <!--
+      Only offered once there is something to clear. A permanently-visible Clear
+      on an empty form is a control that does nothing on every press but one.
+    -->
+    @if (active()) {
+      <button type="button" class="btn-ghost btn-sm" [disabled]="disabled()" (click)="clear.emit()">
+        <app-icon [path]="icons.close" [size]="13" />
+        Clear
+      </button>
+    }
+  </div>
+</div>

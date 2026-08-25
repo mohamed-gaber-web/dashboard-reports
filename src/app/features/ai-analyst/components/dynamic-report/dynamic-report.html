@@ -1,15 +1,13 @@
 <!--
-  The report is ONE sheet, not a scatter of cards.
+  The report is ONE sheet, not a scatter of cards — a padded surface with a
+  title bar and hairline-separated blocks, and everything inside it is plain, so
+  no border is ever drawn twice in the same place.
 
-  It used to render as bare sections sitting straight on the page canvas: no
-  padding of its own, a 22px title over a row of gradient tiles with 34px
-  numbers, then chart cards and a table that each drew their own border. Loud,
-  unpadded, and structurally three unrelated things.
-
-  It is now a padded surface with a title bar and hairline-separated blocks —
-  stats, charts, detail — and everything inside it is plain, so no border is
-  ever drawn twice in the same place. Type is one step quieter throughout:
-  charts are the content, text is the caption.
+  What is NOT fixed any more is the order or the mix. `rows()` is whatever the
+  model designed: it may be a sentence, three comparison metrics and a line
+  chart, or a single ranking and nothing else. Only the chrome — header, the
+  refusals notice, the provenance footer — is constant, and each of those is
+  there because leaving it out would let the report overstate itself.
 
   Container queries, not viewport ones: the columns break on this sheet's own
   width, which is what actually constrains the charts.
@@ -29,9 +27,10 @@
   </header>
 
   <!--
-    Anything the LLM asked for that we refused to compute — an unknown field, an
-    illegal operator, or a slice too large to total. Shown, never dropped: a report
-    that quietly answers half the question is worse than one that says so.
+    Anything the planner refused to compute — an unknown field, a chart over a
+    field that cannot be grouped, or a slice too large to total. Shown, never
+    dropped: a report that quietly answers half the question is worse than one
+    that says so.
   -->
   @if (result().omitted; as omitted) {
     <div class="report-block report-omitted">
@@ -44,72 +43,92 @@
     </div>
   }
 
-  <!--
-    Headline figures as stats, not tiles.
-
-    Four gradient tiles in four palette hues put the loudest thing on the page
-    at the top, where the least important thing is — the totals restate what the
-    charts below already show. A stat is a label, a number and a hairline of the
-    colour that keys it to its chart.
-  -->
-  @if (result().kpis.length) {
-    <section class="report-block stat-row" [class]="statCols()">
-      @for (kpi of result().kpis; track $index) {
-        <div class="stat" [style.borderInlineStartColor]="accent($index)">
-          <span class="stat-label">{{ kpi.label }}</span>
-          <span class="stat-value">{{ kpi.value }}</span>
-        </div>
-      }
-    </section>
-  }
-
-  @if (result().charts.length) {
-    <section class="report-block chart-grid" [class]="chartCols()">
-      @for (chart of result().charts; track $index) {
-        <app-chart-card
-          variant="plain"
-          [title]="chart.title"
-          [subtitle]="chartSubtitle(chart)"
-        >
-          @if (chart.type === 'donut') {
-            <app-donut-chart [data]="chart.data" />
-          } @else {
-            <app-bar-chart [data]="chart.data" />
+  @for (row of rows(); track $index) {
+    @switch (row.kind) {
+      @case ('charts') {
+        <section class="report-block chart-grid" [class]="chartCols(row.charts.length)">
+          @for (chart of row.charts; track $index) {
+            <app-report-chart [chart]="chart" />
           }
-        </app-chart-card>
+        </section>
       }
-    </section>
+
+      @default {
+        <!--
+          One section per block. The heading is optional by design: a stat row
+          captions itself, so forcing a title above it would add a line of
+          furniture that says nothing.
+        -->
+        <section
+          class="report-block"
+          [class.block-detail]="row.block.kind === 'table'"
+          [class.block-lede]="row.first && row.block.kind === 'text'"
+        >
+          @if (heading(row.block); as title) {
+            <header class="block-head">
+              <h3 class="section-title">{{ title }}</h3>
+              @if (note(row.block); as note) {
+                <p class="block-note">{{ note }}</p>
+              }
+            </header>
+          }
+
+          @switch (row.block.kind) {
+            @case ('metrics') {
+              <app-report-metrics [items]="row.block.items" [palette]="design().palette" />
+            }
+            @case ('comparison') {
+              <app-report-comparison
+                [items]="row.block.items"
+                [currentLabel]="row.block.currentLabel"
+                [previousLabel]="row.block.previousLabel"
+              />
+            }
+            @case ('ranking') {
+              <app-report-ranking
+                [rows]="row.block.rows"
+                [measureLabel]="row.block.measureLabel"
+                [palette]="design().palette"
+                [chart]="row.block.chart"
+              />
+            }
+            @case ('table') {
+              <app-report-detail-table
+                [table]="row.block.table"
+                [maxHeight]="tableMaxHeight()"
+              />
+            }
+            @case ('text') {
+              <app-report-narrative [body]="row.block.body" />
+            }
+            @case ('list') {
+              <app-report-list [variant]="row.block.variant" [items]="row.block.items" />
+            }
+          }
+        </section>
+      }
+    }
   }
 
-  @if (result().table; as table) {
-    <section class="report-block detail">
-      <header class="detail-head">
-        <h3 class="section-title">Detail</h3>
-        <!-- The table is a page, not the answer. Say which, before it is read. -->
-        @if (table.total > table.displayRows.length) {
-          <p class="detail-note">
-            First <span class="tabular-nums">{{ table.displayRows.length }}</span> of
-            <span class="tabular-nums">{{ table.total.toLocaleString() }}</span> matching rows —
-            export for all of them.
-          </p>
-        } @else {
-          <p class="detail-note">
-            <span class="tabular-nums">{{ table.total.toLocaleString() }}</span> rows
-          </p>
-        }
-      </header>
-
-      <!--
-        Capped and scrolled in place, under a sticky header: a page of 100 rows
-        would otherwise push every chart off the screen.
-      -->
-      <app-data-table
-        [columns]="table.columns"
-        [rows]="table.displayRows"
-        [maxHeight]="tableMaxHeight()"
-        [zebra]="true"
-        [bare]="true"
-      />
-    </section>
+  <!--
+    An empty report is a real outcome, not a bug: the model can decide a
+    question needs no visuals, or every section it asked for can be refused.
+    Saying which beats an unexplained blank sheet.
+  -->
+  @if (isEmpty()) {
+    <div class="report-block report-empty">
+      <p>
+        No sections could be built for this question. Try narrowing the slice with the filters
+        above, or ask for a specific breakdown — “units remaining by customer”, “orders per month”.
+      </p>
+    </div>
   }
+
+  <!--
+    The claim the whole feature rests on, stated where the figures are. The
+    model designs the report; the app computes every number in it.
+  -->
+  <footer class="report-foot">
+    Designed by the AI analyst · every figure computed from Dynamics 365
+  </footer>
 </div>

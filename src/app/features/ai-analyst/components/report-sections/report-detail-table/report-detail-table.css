@@ -1,0 +1,9 @@
+:host {
+  display: block;
+}
+
+.detail-note {
+  padding: 0 0 0.6rem;
+  font-size: 0.6875rem;
+  color: var(--content-muted);
+}

@@ -1,0 +1,54 @@
+.rb-insights {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rb-insight {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: 0.6rem;
+}
+
+.rb-insight-tag {
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/*
+  An observation is a reading of the figures on this page — it inherits their
+  authority, so it is inked in the chart hue that keys it to them.
+*/
+.rb-insight[data-kind='observation'] .rb-insight-tag {
+  background: color-mix(in srgb, var(--color-chart-1) 14%, transparent);
+  color: var(--color-chart-1);
+}
+
+/*
+  An interpretation is the model's reading. It is stated plainly and marked
+  plainly, in the muted register the recommendation caveat also uses, so it can
+  never be mistaken for something that was measured.
+*/
+.rb-insight[data-kind='interpretation'] .rb-insight-tag {
+  background: var(--color-surface-muted);
+  color: var(--color-muted);
+}
+
+.rb-insight-text {
+  font-size: 0.86rem;
+  line-height: 1.55;
+  color: var(--color-content);
+}
+
+.rb-insight[data-kind='interpretation'] .rb-insight-text {
+  color: var(--color-muted);
+}

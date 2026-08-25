@@ -1,0 +1,54 @@
+:host {
+  display: block;
+}
+
+/*
+ * Density comes down as inherited custom properties from the report sheet
+ * (`--rp-*`), never as `:host-context`. Emulated encapsulation rewrites every
+ * selector to require this component's own attribute, so a parent class can
+ * only reach in through a property — and a property is also the only channel
+ * that keeps "what compact means" defined in one place.
+ */
+.stat-row {
+  display: grid;
+  gap: var(--rp-stat-gap, 0.9rem 1.25rem);
+}
+
+/*
+ * Label above, figure below, one hairline of the palette colour that keys this
+ * stat to the chart it came from. The colour is the whole decorative budget.
+ */
+.stat {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.2rem;
+  border-inline-start: 2px solid var(--border-strong);
+  padding-inline-start: 0.7rem;
+}
+
+.stat-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--content-faint);
+  /* A generated label can be long; two lines is the cap before it crowds the
+     figure it belongs to. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.stat-value {
+  font-size: var(--rp-stat-size, 1.4rem);
+  font-weight: 650;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: var(--content);
+  font-variant-numeric: tabular-nums;
+  /* A currency total in a narrow column must wrap rather than widen its grid
+     column and push every other stat out of alignment. */
+  overflow-wrap: anywhere;
+}

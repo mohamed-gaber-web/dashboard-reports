@@ -164,3 +164,124 @@ describe('buildDocument', () => {
     expect(html).not.toContain('Empty');
   });
 });
+
+/**
+ * The document has to be the report the user just read — same sections, same
+ * order. A builder that rendered a fixed KPI/chart/table sequence while the
+ * screen showed a ranking and two paragraphs would put the divergence in the
+ * one artefact that gets forwarded to other people.
+ */
+describe('buildDocument — dynamic sections', () => {
+  function withBlocks(blocks: ReportResult['blocks']): DocumentInput {
+    return { ...base, analysis: null, result: { ...result, blocks, kpis: [], charts: [], table: undefined } };
+  }
+
+  it('renders blocks in the order the model chose', () => {
+    const html = buildDocument(
+      withBlocks([
+        { kind: 'text', title: 'What happened', body: 'Deliveries slipped at two sites.' },
+        { kind: 'list', variant: 'insights', items: ['Site A is over half the shortfall.'] },
+      ]),
+    );
+    expect(html.indexOf('What happened')).toBeLessThan(html.indexOf('What this shows'));
+    expect(html).toContain('Deliveries slipped at two sites.');
+    expect(html).toContain('Site A is over half the shortfall.');
+  });
+
+  it('renders only what the report contained', () => {
+    const html = buildDocument(withBlocks([{ kind: 'text', body: 'Just a sentence.' }]));
+    expect(html).not.toContain('At a glance');
+    expect(html).not.toContain('Detail');
+  });
+
+  it('prints a ranking with its positions, figures and shares', () => {
+    const html = buildDocument(
+      withBlocks([
+        {
+          kind: 'ranking',
+          title: 'Top sites',
+          measureLabel: 'Amount',
+          chart: true,
+          rows: [
+            { rank: 1, label: 'Site A', value: 100, display: '100', sharePct: 62, widthPct: 100 },
+            { rank: 2, label: 'Site B', value: 60, display: '60', sharePct: 38, widthPct: 60 },
+          ],
+        },
+      ]),
+    );
+    expect(html).toContain('Top sites');
+    expect(html).toContain('Site A');
+    expect(html).toContain('62%');
+  });
+
+  it('prints a comparison with both periods and the change', () => {
+    const html = buildDocument(
+      withBlocks([
+        {
+          kind: 'comparison',
+          currentLabel: 'Q2 2025',
+          previousLabel: 'Q1 2025',
+          items: [
+            {
+              label: 'Lines',
+              current: '25',
+              previous: '20',
+              delta: '+5',
+              deltaPercent: 25,
+              direction: 'up',
+              sentiment: 'bad',
+            },
+          ],
+        },
+      ]),
+    );
+    expect(html).toContain('Q2 2025 vs Q1 2025');
+    expect(html).toContain('+25%');
+    expect(html).toContain('Q1 2025: 20');
+    // Sentiment is a class, never a raw colour the model chose.
+    expect(html).toContain('cmp-bad');
+  });
+
+  it('draws a line chart as SVG geometry, not a bar', () => {
+    const html = buildDocument(
+      withBlocks([
+        {
+          kind: 'chart',
+          chart: {
+            type: 'line',
+            title: 'Lines per month',
+            ordered: true,
+            data: [
+              { label: 'Jan 2025', value: 2 },
+              { label: 'Feb 2025', value: 4 },
+            ],
+            labels: ['Jan 2025', 'Feb 2025'],
+            series: [{ label: 'Lines per month', values: [2, 4] }],
+          },
+        },
+      ]),
+    );
+    expect(html).toContain('<polyline');
+    expect(html).toContain('Jan 2025');
+  });
+
+  it('escapes model prose in every new section', () => {
+    const html = buildDocument(
+      withBlocks([
+        { kind: 'text', title: '<i>t</i>', body: '<script>x</script>' },
+        { kind: 'list', variant: 'recommendations', items: ['<img src=y>'] },
+        {
+          kind: 'ranking',
+          title: 'R',
+          measureLabel: '<b>m</b>',
+          chart: false,
+          rows: [{ rank: 1, label: '<u>l</u>', value: 1, display: '1', sharePct: 100, widthPct: 100 }],
+        },
+      ]),
+    );
+    expect(html).not.toContain('<script>x');
+    expect(html).not.toContain('<img src=y>');
+    expect(html).not.toContain('<u>l</u>');
+    expect(html).not.toContain('<b>m</b>');
+  });
+});

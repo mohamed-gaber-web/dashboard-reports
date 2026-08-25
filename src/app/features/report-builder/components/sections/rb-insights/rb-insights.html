@@ -1,0 +1,8 @@
+<ul class="rb-insights">
+  @for (point of points(); track $index) {
+    <li class="rb-insight" [attr.data-kind]="point.kind">
+      <span class="rb-insight-tag">{{ label(point) }}</span>
+      <span class="rb-insight-text">{{ point.text }}</span>
+    </li>
+  }
+</ul>

@@ -1,0 +1,28 @@
+<div class="doc" [class.doc-expanded]="expanded()">
+  <div class="doc-bar">
+    <span class="doc-label">{{ frameTitle() }}</span>
+    <button type="button" class="btn-ghost btn-sm" (click)="toggle()">
+      <app-icon [path]="expanded() ? icons.collapse : icons.expand" [size]="14" />
+      {{ expanded() ? 'Collapse' : 'Expand' }}
+    </button>
+  </div>
+
+  <!--
+    `sandbox` is written as a STATIC attribute with no value: no scripts, no
+    same-origin, no forms, no popups, no top-level navigation. Angular refuses to
+    let it be a binding — a restriction that exists so it cannot be relaxed at
+    runtime, and one this component depends on rather than works around.
+
+    Do not add `allow-scripts` to make the frame self-size. That single token
+    hands the model's markup a live JavaScript context, which is the whole thing
+    this element is here to prevent; the height is the parent's job instead.
+  -->
+  <iframe
+    class="doc-frame"
+    sandbox
+    referrerpolicy="no-referrer"
+    loading="lazy"
+    [title]="frameTitle()"
+    [srcdoc]="srcdoc()"
+  ></iframe>
+</div>

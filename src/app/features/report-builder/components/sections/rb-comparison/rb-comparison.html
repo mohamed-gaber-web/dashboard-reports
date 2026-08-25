@@ -1,0 +1,32 @@
+<div class="rb-cmp-grid">
+  @for (item of items(); track $index) {
+    <div class="rb-cmp">
+      <span class="rb-cmp-label">{{ item.label }}</span>
+
+      <div class="rb-cmp-figures">
+        <span class="rb-cmp-current tabular-nums">{{ item.current }}</span>
+        <span
+          class="rb-cmp-delta"
+          [attr.data-sentiment]="item.sentiment"
+          [attr.data-direction]="item.direction"
+        >
+          <app-icon [path]="arrow(item)" [size]="13" />
+          <span class="tabular-nums">{{ percent(item) }}</span>
+        </span>
+      </div>
+
+      <!--
+        The baseline, spelled out. "18% up" is only meaningful beside what it is
+        up FROM, and the period names are what make two numbers a comparison
+        rather than two numbers.
+      -->
+      <span class="rb-cmp-base">
+        <span class="rb-cmp-period">{{ currentLabel() }}</span>
+        vs
+        <span class="tabular-nums">{{ item.previous }}</span>
+        in <span class="rb-cmp-period">{{ previousLabel() }}</span>
+        <span class="rb-cmp-abs tabular-nums">({{ item.delta }})</span>
+      </span>
+    </div>
+  }
+</div>

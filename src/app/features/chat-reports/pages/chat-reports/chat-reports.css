@@ -37,6 +37,108 @@
   color: var(--color-brand-300);
 }
 
+/*
+ * The caveats that ride on the grounding line. `.ctx-badge` was referenced by
+ * this template before it was ever defined, so "Counts only — too many rows to
+ * total" rendered as unstyled body text in the middle of a sentence — the one
+ * caveat on this screen that most needed to look like a caveat.
+ */
+.ctx-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--warning) 35%, transparent);
+  background-color: color-mix(in srgb, var(--warning) 12%, transparent);
+  padding: 0.0625rem 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--warning);
+}
+
+/* The slice is a statement of scope, not a warning — it gets the neutral tone. */
+.ctx-badge-slice {
+  border-color: var(--border-soft);
+  background-color: var(--surface-muted);
+  font-weight: 500;
+  color: var(--content-muted);
+}
+
+.ctx-note {
+  margin: 0;
+  border-radius: var(--radius-lg, 0.75rem);
+  border: 1px solid var(--border-soft);
+  background-color: var(--surface-muted);
+  padding: 0.625rem 0.875rem;
+  font-size: 0.8125rem;
+  color: var(--content-muted);
+}
+
+.ctx-spinner {
+  display: inline-block;
+  height: 0.75rem;
+  width: 0.75rem;
+  flex: none;
+  border-radius: 999px;
+  border: 2px solid color-mix(in srgb, var(--color-brand-500) 30%, transparent);
+  border-top-color: var(--color-brand-500);
+  animation: ctx-spin 0.7s linear infinite;
+}
+
+@keyframes ctx-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Respect a stated preference for less motion — the text already says it's working. */
+@media (prefers-reduced-motion: reduce) {
+  .ctx-spinner {
+    animation: none;
+  }
+}
+
+/* ── The fold's progress ────────────────────────────────────────────────── */
+
+.ctx-fold {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  border-radius: var(--radius-lg, 0.75rem);
+  border: 1px solid var(--border-soft);
+  background-color: var(--surface);
+  padding: 0.75rem 0.875rem;
+}
+
+.ctx-fold-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--content-muted);
+}
+
+.ctx-pct {
+  font-weight: 600;
+  color: var(--content);
+}
+
+.ctx-bar {
+  height: 0.375rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background-color: var(--surface-muted);
+}
+
+.ctx-bar-fill {
+  display: block;
+  height: 100%;
+  /* Driven by --pct on the track, so the number and the bar cannot disagree. */
+  width: var(--pct, 0%);
+  border-radius: 999px;
+  background-color: var(--color-brand-500);
+  transition: width 0.3s ease;
+}
+
 /* ── Chat frame ─────────────────────────────────────────────────────────── */
 
 .chat {
@@ -157,7 +259,7 @@
     background-color 0.15s ease;
 }
 
-.chip:hover {
+.chip:hover:not(:disabled) {
   border-color: color-mix(in srgb, var(--color-brand-400) 55%, var(--border-strong));
   background: color-mix(in srgb, var(--color-brand-500) 7%, var(--surface));
   color: var(--color-brand-600);
@@ -168,8 +270,50 @@
   outline-offset: 2px;
 }
 
-.dark .chip:hover {
+/* A starter is a question, and there is nothing to ask until the data lands. */
+.chip:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.dark .chip:hover:not(:disabled) {
   color: var(--color-brand-200);
+}
+
+/* The reason the chips above are dead, next to the chips. */
+.empty-blocked {
+  margin: 0;
+  padding-top: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--content-faint);
+}
+
+/* ── Slice marker ───────────────────────────────────────────────────────── */
+
+/*
+ * A rule across the transcript where the slice changed. It has to read as a
+ * boundary rather than a message — everything above it was computed over a
+ * different set of rows.
+ */
+.notice {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.25rem 0;
+}
+
+.notice-rule {
+  height: 1px;
+  flex: 1 1 auto;
+  background-color: var(--border-soft);
+}
+
+.notice-text {
+  flex: 0 1 auto;
+  text-align: center;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  color: var(--content-faint);
 }
 
 /* ── Pending / error ────────────────────────────────────────────────────── */
@@ -256,6 +400,16 @@
 .composer-shell:focus-within {
   border-color: var(--color-brand-400);
   box-shadow: var(--ring);
+}
+
+/*
+ * Closed until there are real aggregates behind it. Muted rather than hidden:
+ * the box has to stay where it is so the layout does not jump when the data
+ * lands, and its placeholder is what says why it cannot be used yet.
+ */
+.composer-shell-locked {
+  border-style: dashed;
+  background: var(--surface-muted);
 }
 
 .composer {

@@ -1,0 +1,34 @@
+<ul class="rb-actions">
+  @for (point of points(); track $index) {
+    <li class="rb-action">
+      <span class="rb-action-tick" aria-hidden="true">
+        <app-icon [path]="tick" [size]="13" />
+      </span>
+
+      <span class="rb-action-body">
+        <span class="rb-action-head">
+          <span class="rb-action-text">{{ point.text }}</span>
+          @if (point.priority; as priority) {
+            <span class="rb-action-priority" [attr.data-priority]="priority">{{ priority }}</span>
+          }
+        </span>
+
+        @if (point.rationale; as rationale) {
+          <!--
+            The figure this rests on. It is what turns "we suggest X" into
+            something a reader can check rather than take on trust.
+          -->
+          <span class="rb-action-why">Because: {{ rationale }}</span>
+        }
+      </span>
+    </li>
+  }
+</ul>
+
+<!--
+  Said once, quietly. This is what stops a suggestion borrowing the authority of
+  the computed figures it sits beneath.
+-->
+<p class="rb-actions-caveat">
+  Proposed by the AI from the figures above — a suggestion, not a computed result.
+</p>

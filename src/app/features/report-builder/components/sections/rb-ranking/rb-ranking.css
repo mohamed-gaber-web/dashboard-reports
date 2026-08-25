@@ -1,0 +1,93 @@
+.rb-rank {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rb-rank-head,
+.rb-rank-row {
+  display: grid;
+  grid-template-columns: 1.75rem minmax(0, 1fr) auto 3.25rem;
+  align-items: start;
+  gap: 0.75rem;
+  padding: var(--rb-row-pad, 0.55rem) 0;
+}
+
+.rb-rank-head {
+  padding-block: 0 0.4rem;
+  border-bottom: 1px solid var(--color-border-soft);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-faint);
+}
+
+.rb-rank-row + .rb-rank-row {
+  border-top: 1px solid var(--color-border-soft);
+}
+
+.rb-rank-pos {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 999px;
+  background: var(--color-surface-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-muted);
+}
+
+/* Only the podium. Below that a rank is a number, not a status. */
+.rb-rank-lead {
+  background: color-mix(in srgb, var(--color-chart-1) 16%, transparent);
+  color: var(--color-chart-1);
+}
+
+.rb-rank-name {
+  min-width: 0;
+  font-size: 0.85rem;
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--color-content);
+  overflow-wrap: anywhere;
+}
+
+.rb-rank-track {
+  display: block;
+  height: 5px;
+  margin-top: 0.35rem;
+  border-radius: 999px;
+  background: var(--color-surface-muted);
+  overflow: hidden;
+}
+
+.rb-rank-bar {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--color-chart-1);
+}
+
+.rb-rank-value {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-content);
+}
+
+.rb-rank-share {
+  text-align: right;
+  font-size: 0.78rem;
+  color: var(--color-muted);
+}
+
+.rb-rank-empty {
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--color-muted);
+}

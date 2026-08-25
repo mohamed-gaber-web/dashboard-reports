@@ -56,6 +56,14 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'ai/report-builder',
+        title: 'AI Report Builder',
+        loadComponent: () =>
+          import('./features/report-builder/pages/report-builder/report-builder').then(
+            (m) => m.ReportBuilderComponent,
+          ),
+      },
+      {
         path: 'settings',
         title: 'Settings',
         loadComponent: () =>

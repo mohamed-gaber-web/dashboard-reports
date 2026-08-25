@@ -1,0 +1,26 @@
+<!-- The table is a page, not the answer. Say which, before it is read. -->
+@if (table().total > table().displayRows.length) {
+  <p class="detail-note">
+    First <span class="tabular-nums">{{ table().displayRows.length }}</span> of
+    <span class="tabular-nums">{{ table().total.toLocaleString() }}</span> matching rows — export
+    for all of them.
+  </p>
+} @else {
+  <p class="detail-note">
+    <span class="tabular-nums">{{ table().total.toLocaleString() }}</span> rows
+  </p>
+}
+
+<!--
+  Deliberately NOT sortable. These are the first 100 rows of the match, not the
+  whole set, so sorting them would produce a "top 10" that is only the top 10 of
+  an arbitrary page — the exact kind of quietly-wrong answer the ranking section
+  exists to give properly.
+-->
+<app-data-table
+  [columns]="table().columns"
+  [rows]="table().displayRows"
+  [maxHeight]="maxHeight()"
+  [zebra]="true"
+  [bare]="true"
+/>

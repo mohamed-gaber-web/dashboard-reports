@@ -16,6 +16,7 @@ require('../scripts/load-env.js')();
 
 const chatHandler = require('../api/chat.js');
 const chatReportHandler = require('../api/chat-report.js');
+const reportBuilderHandler = require('../api/report-builder.js');
 const providersHandler = require('../api/ai-providers.js');
 const tokenHandler = require('../api/token.js');
 const { providerStatus, defaultProviderId } = require('../api/_lib/ai-provider.js');
@@ -29,6 +30,7 @@ const PORT = process.env.DEV_API_PORT || 3001;
 const ROUTES = {
   '/api/chat': chatHandler,
   '/api/chat-report': chatReportHandler,
+  '/api/report-builder': reportBuilderHandler,
   '/api/ai-providers': providersHandler,
   '/api/token': tokenHandler,
 };

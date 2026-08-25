@@ -1,0 +1,115 @@
+:host {
+  position: relative;
+  display: inline-block;
+}
+
+/*
+ * Quiet by default. This sits on a report inside a chat bubble, where the
+ * figures are the content — an emphatic button here would compete with them on
+ * every single reply.
+ */
+.xm-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border-radius: 0.5rem;
+  border: 1px solid transparent;
+  padding: 0.2rem 0.45rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--content-muted);
+  cursor: pointer;
+  transition:
+    color 0.14s ease,
+    border-color 0.14s ease,
+    background-color 0.14s ease;
+}
+.xm-trigger:hover:not(:disabled) {
+  border-color: var(--border-soft);
+  background: var(--surface-muted);
+  color: var(--content);
+}
+.xm-trigger:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+.xm-trigger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.xm-chevron {
+  display: inline-flex;
+  transition: transform 0.2s var(--ease-out);
+}
+.xm-chevron-open {
+  transform: rotate(180deg);
+}
+
+/*
+ * Opens to the RIGHT edge and upward-friendly: the trigger sits at the bottom of
+ * a report that may itself be near the bottom of a scrolling transcript.
+ */
+.xm-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.3rem);
+  z-index: 40;
+  min-width: 13rem;
+  padding: 0.3rem;
+  border-radius: 0.7rem;
+  border: 1px solid var(--border-soft);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  animation: xm-in 0.14s var(--ease-out) both;
+}
+
+.xm-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  border-radius: 0.45rem;
+  padding: 0.4rem 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--content);
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+.xm-item:hover {
+  background: var(--surface-muted);
+}
+.xm-item:focus-visible {
+  outline: none;
+  background: var(--surface-muted);
+  box-shadow: var(--ring);
+}
+.xm-item app-icon {
+  flex-shrink: 0;
+  color: var(--color-brand-400);
+}
+
+.xm-note {
+  font-size: 0.6875rem;
+  color: var(--content-faint);
+}
+
+@keyframes xm-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .xm-menu {
+    animation: none;
+  }
+  .xm-chevron {
+    transition: none;
+  }
+}

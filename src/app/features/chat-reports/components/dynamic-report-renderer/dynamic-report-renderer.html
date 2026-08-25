@@ -11,6 +11,17 @@
         @case ('table') {
           <app-dynamic-table [spec]="asTable(component)" />
         }
+        @case ('html_document') {
+          <!--
+            The Executive style's whole report, in a sandboxed frame. Its markup
+            never enters this document — see html-document.ts for why that is
+            the only way it can carry its own stylesheet and its own SVG safely.
+          -->
+          <app-html-document
+            [html]="asHtmlDocument(component).html"
+            [title]="asHtmlDocument(component).title ?? ''"
+          />
+        }
         <!--
           No @default. The set of renderable types is closed by design: the
           parser drops anything else before it reaches here, and the backend

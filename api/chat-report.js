@@ -55,6 +55,17 @@ const { explainAiError } = require('./_lib/ai-errors');
 // api/chat.js; raise via env if report quality matters more than latency.
 const DEFAULT_EFFORT = 'medium';
 
+/**
+ * Output budget per style, thinking included.
+ *
+ * The Executive style writes a whole designed document — an inline stylesheet,
+ * three inline SVG charts and eight sections of Arabic prose — where the
+ * standard style writes a few hundred numbers. At 16k it runs out mid-document,
+ * and a truncated HTML fragment is not a smaller report: it is an unclosed tag
+ * and half a balance sheet.
+ */
+const MAX_TOKENS = { standard: 16000, executive: 32000 };
+
 function json(res, status, body) {
   res.statusCode = status;
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -141,12 +152,12 @@ function payloadFrom(message) {
  * streaming here is purely so a slow reply cannot trip the SDK's HTTP timeout
  * or Vercel's function timeout on a large report.
  */
-async function runClaudeReport({ apiKey, model, system, messages }) {
+async function runClaudeReport({ apiKey, model, system, messages, maxTokens }) {
   const client = new Anthropic({ apiKey });
 
   const stream = client.messages.stream({
     model,
-    max_tokens: 16000,
+    max_tokens: maxTokens,
     thinking: { type: 'adaptive' },
     output_config: { effort: process.env.ANTHROPIC_EFFORT || DEFAULT_EFFORT },
     // The system block carries the schema and aggregates — large, and identical
@@ -183,7 +194,7 @@ module.exports = async function handler(req, res) {
     json(res, 400, { error: parsed.error });
     return;
   }
-  const { messages, dataContext, provider: requestedProvider } = parsed.value;
+  const { messages, dataContext, provider: requestedProvider, style } = parsed.value;
 
   // Resolve AFTER validation so a malformed body is a 400, not a 503, and never
   // echo a key (BE-RT-03/04). An unknown provider name falls back to the
@@ -194,7 +205,10 @@ module.exports = async function handler(req, res) {
     return;
   }
   const provider = decision.provider;
-  const system = systemPrompt(dataContext);
+  // The style selects WHAT to build; the grounding rules inside the prompt are
+  // the same either way, so neither style can state a figure the other could not.
+  const system = systemPrompt(dataContext, style);
+  const maxTokens = MAX_TOKENS[style] ?? MAX_TOKENS.standard;
 
   try {
     // Both branches return the SAME message shape, so everything downstream —
@@ -212,6 +226,7 @@ module.exports = async function handler(req, res) {
             model: provider.model,
             system,
             messages,
+            maxTokens,
           });
 
     if (message.stop_reason === 'refusal') {

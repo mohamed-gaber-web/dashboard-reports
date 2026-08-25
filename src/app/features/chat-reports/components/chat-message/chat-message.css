@@ -54,7 +54,22 @@
   padding: 0.875rem;
 }
 
+/*
+ * The caveat and the export control share one line: same subject, and it keeps
+ * the report's footer to a single row rather than stacking two quiet strips.
+ * Wraps rather than truncating — the provenance sentence must stay readable at
+ * any width, so the export button drops below it on a narrow bubble.
+ */
+.msg-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.25rem 0.75rem;
+}
+
 .msg-provenance {
+  flex: 1 1 16rem;
   margin: 0;
   font-size: 0.6875rem;
   line-height: 1.4;

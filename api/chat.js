@@ -17,12 +17,24 @@
  * contract to the browser is byte-for-byte the same, so the Angular client is
  * unchanged.
  *
- * The tool is deliberately NOT `strict: true`: ReportSpec has many optional fields
- * (description, filters, table, valueField, topN…) and strict mode requires every
- * property to be listed as required. SpecCompilerService already validates each
- * clause against the real schema and surfaces anything it refuses via `omitted`,
- * so a permissive schema plus that compiler is both safer and more honest than a
- * rigid schema that would force the model to emit empty placeholders.
+ * ## The report has no fixed shape
+ *
+ * `emit_report` takes an ORDERED LIST of sections — metrics, chart, comparison,
+ * ranking, table, text, insights, recommendations — and the model picks which
+ * appear, how many, and in what order. It used to take a fixed `{kpis, charts,
+ * table}` triple, so every answer came back as the same dashboard whatever was
+ * asked, which is the limitation this schema exists to remove.
+ *
+ * A section is a FLAT object with a `type` discriminator, not a schema union.
+ * `oneOf` does not survive translation into Gemini's dialect (see
+ * `_lib/gemini-schema.js`), and the client validates every clause anyway.
+ *
+ * The tool is deliberately NOT `strict: true`: a section has many optional
+ * fields and strict mode requires every property to be listed as required.
+ * `report-plan.ts` validates each clause against the real schema — dropping what
+ * cannot mean anything, rewriting what is merely the wrong form — and surfaces
+ * all of it via `omitted`. A permissive schema plus that planner is both safer
+ * and more honest than a rigid schema that forces empty placeholders.
  *
  * ## Two providers, one SSE contract
  *
@@ -53,27 +65,172 @@ const { streamGeminiAnalyst } = require('./_lib/gemini-analyst');
 // Raise to high/xhigh via env if report quality matters more than responsiveness.
 const DEFAULT_EFFORT = 'medium';
 
+/** A measure clause, reused by `metrics` sections and by `comparison`. */
+const METRIC_ITEM = {
+  type: 'object',
+  properties: {
+    label: { type: 'string', description: 'What this figure is called on screen.' },
+    agg: { type: 'string', enum: ['count', 'sum', 'avg', 'distinctCount'] },
+    field: { type: 'string', description: 'Omit when agg is "count". Must be a SCHEMA field.' },
+    format: { type: 'string', enum: ['integer', 'quantity', 'currency', 'percent'] },
+    higherIsBetter: {
+      type: 'boolean',
+      description:
+        'COMPARISON SECTIONS ONLY. Set it only when a rise really is an improvement (revenue) ' +
+        'or really is not (overdue lines). Omit when it is genuinely ambiguous — the app then ' +
+        'shows the change without colouring it good or bad, which is the honest default.',
+    },
+  },
+  required: ['label', 'agg'],
+};
+
+/**
+ * The two periods of a comparison, as SIX FLAT STRINGS rather than two nested
+ * `{label, from, to}` objects.
+ *
+ * This is not a style choice. Measured against the live endpoint, Gemini
+ * repeatedly emitted the nested form with `from` missing — twice out of two,
+ * despite `required: ['label','from','to']` and an emphatic description — while
+ * scalar properties at the top of a section come back intact. A comparison is
+ * usually the ONLY section in its report, so a dropped bound is a blank sheet
+ * rather than a slightly worse chart.
+ *
+ * `report-plan.ts` still accepts the nested form, so a spec echoed back from an
+ * older session keeps working.
+ */
+const PERIOD_FIELDS = {
+  currentLabel: { type: 'string', description: 'comparison: name of the LATER period, e.g. "August 2025".' },
+  currentFrom: {
+    type: 'string',
+    description:
+      'comparison: REQUIRED. First day of the later period, inclusive, as YYYY-MM-DD ' +
+      '(e.g. "2025-08-01"). Never omit it and never leave it blank.',
+  },
+  currentTo: {
+    type: 'string',
+    description:
+      'comparison: REQUIRED. Last day of the later period, inclusive, as YYYY-MM-DD ' +
+      '(e.g. "2025-08-31"). Never omit it and never leave it blank.',
+  },
+  previousLabel: { type: 'string', description: 'comparison: name of the BASELINE period, e.g. "July 2025".' },
+  previousFrom: {
+    type: 'string',
+    description: 'comparison: REQUIRED. First day of the baseline period, inclusive, as YYYY-MM-DD.',
+  },
+  previousTo: {
+    type: 'string',
+    description: 'comparison: REQUIRED. Last day of the baseline period, inclusive, as YYYY-MM-DD.',
+  },
+};
+
+/**
+ * ONE section of the report.
+ *
+ * Deliberately a FLAT object with a `type` discriminator rather than a schema
+ * union: `oneOf` does not survive translation into Gemini's dialect (see
+ * `api/_lib/gemini-schema.js`), and the app validates every clause anyway —
+ * `report-plan.ts` drops or rewrites whatever does not fit the section's kind
+ * and reports what it did. A permissive schema plus a strict planner is both
+ * safer and more honest than a rigid schema the model has to pad with
+ * placeholders.
+ */
+const SECTION = {
+  type: 'object',
+  properties: {
+    type: {
+      type: 'string',
+      enum: [
+        'metrics',
+        'chart',
+        'comparison',
+        'ranking',
+        'table',
+        'text',
+        'insights',
+        'recommendations',
+      ],
+      description:
+        'metrics = a row of headline figures. chart = one visualisation. comparison = the same ' +
+        'measures over two periods, with the change. ranking = an ordered top-N with shares. ' +
+        'table = detail rows. text = a paragraph of explanation. insights = short readings of ' +
+        'the data. recommendations = suggested actions.',
+    },
+    title: { type: 'string', description: 'Heading. Omit on a metrics row — the stats caption themselves.' },
+    note: { type: 'string', description: 'One line of context under the heading.' },
+
+    // metrics
+    items: { type: 'array', description: 'metrics: the figures in this row.', items: METRIC_ITEM },
+
+    // chart
+    chartType: {
+      type: 'string',
+      enum: ['bar', 'column', 'line', 'area', 'donut'],
+      description:
+        'bar = horizontal, best for top-N categories with long names. column = vertical, for a ' +
+        'category axis read left to right. line = change over TIME. area = the same where the ' +
+        'magnitude matters. donut = parts of one whole, 6 slices at most. line and area REQUIRE ' +
+        'a date field in groupBy.',
+    },
+    groupBy: { type: 'string', description: 'chart/ranking: the field to group by. A date field makes it a trend.' },
+    agg: { type: 'string', enum: ['count', 'sum', 'avg'], description: 'chart/ranking.' },
+    valueField: { type: 'string', description: 'chart/ranking: the measure. Omit when agg is "count".' },
+    topN: { type: 'number', description: 'chart/ranking: how many groups to show.' },
+    grain: {
+      type: 'string',
+      enum: ['auto', 'day', 'week', 'month', 'quarter', 'year'],
+      description: 'chart over a date field: the bucket size. "auto" fits the grain to the span.',
+    },
+
+    // comparison
+    dateField: { type: 'string', description: 'comparison: the date field to cut periods on.' },
+    ...PERIOD_FIELDS,
+    metrics: { type: 'array', description: 'comparison: the measures to compare.', items: METRIC_ITEM },
+
+    // ranking
+    chart: { type: 'boolean', description: 'ranking: draw a proportional bar per row. Default true.' },
+    format: { type: 'string', enum: ['integer', 'quantity', 'currency', 'percent'], description: 'ranking.' },
+
+    // table
+    columns: { type: 'array', description: 'table: SCHEMA field names, in order.', items: { type: 'string' } },
+
+    // text
+    body: { type: 'string', description: 'text: the paragraph. Plain prose, no markdown.' },
+
+    // insights / recommendations
+    points: {
+      type: 'array',
+      description: 'insights/recommendations: one short sentence each.',
+      items: { type: 'string' },
+    },
+  },
+  required: ['type'],
+};
+
 /**
  * The Report Spec, as a tool schema. MUST stay in sync with `ReportSpec` in
  * features/ai-analyst/models/report-spec.model.ts — that interface is the
- * contract SpecCompilerService compiles against.
+ * contract `report-plan.ts` and `ReportEngineService` compile against.
  */
 const REPORT_TOOL = {
   name: 'emit_report',
   description:
-    'Render a dashboard report for the user. Call this whenever the user wants to see, ' +
-    'chart, break down, compare, or build a report or dashboard. Describe only the SHAPE ' +
-    'of the report — field names and aggregations. Never include computed numbers: the ' +
-    'app calculates every figure itself against the real dataset. Call at most once per ' +
-    'reply, and not at all when the user only asks a question you can answer in prose.',
+    'Render a report for the user. Call this whenever the user wants to see, chart, break ' +
+    'down, rank, compare, or build a report. Describe only the SHAPE of the report — which ' +
+    'sections, which fields, which aggregations. Never include computed numbers: the app ' +
+    'calculates every figure itself against the real dataset. There is NO fixed template: ' +
+    'choose the sections that answer THIS question and leave the rest out. Call at most once ' +
+    'per reply, and not at all when the user only asks something you can answer in prose.',
   input_schema: {
     type: 'object',
     properties: {
-      title: { type: 'string', description: 'Report title.' },
+      title: { type: 'string', description: 'Report title. Name the answer, not the dataset.' },
       description: { type: 'string', description: 'Optional one-line subtitle.' },
       filters: {
         type: 'array',
-        description: 'Optional. Rows to include. Field names must come from the SCHEMA.',
+        description:
+          'Optional. Rows to include, ANDed together. Field names must come from the SCHEMA. ' +
+          'Do NOT filter to a single period when the report contains a comparison — both ' +
+          'periods have to be inside the filter or the earlier one measures zero.',
         items: {
           type: 'object',
           properties: {
@@ -84,43 +241,16 @@ const REPORT_TOOL = {
           required: ['field', 'op', 'value'],
         },
       },
-      kpis: {
+      sections: {
         type: 'array',
-        description: 'Headline numbers. Prefer count — it is always exact and free.',
-        items: {
-          type: 'object',
-          properties: {
-            label: { type: 'string' },
-            agg: { type: 'string', enum: ['count', 'sum', 'avg', 'distinctCount'] },
-            field: { type: 'string', description: 'Omit when agg is "count".' },
-            format: { type: 'string', enum: ['integer', 'quantity', 'currency'] },
-          },
-          required: ['label', 'agg'],
-        },
-      },
-      charts: {
-        type: 'array',
-        description: 'Charts to draw. Empty array when the slice is too large to total.',
-        items: {
-          type: 'object',
-          properties: {
-            type: { type: 'string', enum: ['bar', 'donut'] },
-            title: { type: 'string' },
-            groupBy: { type: 'string' },
-            agg: { type: 'string', enum: ['count', 'sum', 'avg'] },
-            valueField: { type: 'string', description: 'Omit when agg is "count".' },
-            topN: { type: 'number' },
-          },
-          required: ['type', 'title', 'groupBy', 'agg'],
-        },
-      },
-      table: {
-        type: 'object',
-        description: 'Optional detail table.',
-        properties: {
-          columns: { type: 'array', items: { type: 'string' } },
-        },
-        required: ['columns'],
+        description:
+          'The report body, in the order it should be read. Include ONLY sections that earn ' +
+          'their place for this question — a focused report of two sections beats a dashboard ' +
+          'of seven. Typical shapes: a ranking question is one ranking (plus a table if the ' +
+          'detail helps); a trend question is a metrics row and one line chart; a "why" ' +
+          'question is text, the metrics that explain it, a chart of the contributing ' +
+          'dimension, then insights.',
+        items: SECTION,
       },
       design: {
         type: 'object',
@@ -153,7 +283,7 @@ const REPORT_TOOL = {
         },
       },
     },
-    required: ['title', 'kpis', 'charts'],
+    required: ['title', 'sections'],
   },
 };
 
@@ -250,19 +380,69 @@ function systemPrompt(dataContext) {
   const pending = dataContext?.coverage === 'pending';
   const rowCount = dataContext?.rowCount ?? 0;
 
+  const today = new Date().toISOString().slice(0, 10);
+
   return [
-    'You are the AI Analyst inside a Dynamics 365 reporting dashboard.',
-    'You help users understand their data and build dashboard reports through conversation.',
+    'You are an AI Business Analyst working inside a Dynamics 365 reporting dashboard.',
+    'A user asks a question about their operational data; you decide what actually answers it',
+    'and lay that out as a report. You are not filling in a template.',
     '',
-    'Ground every figure ONLY in the DATA SUMMARY below — never invent numbers.',
+    'For every request, work out:',
+    '- what the user is really asking, including what the earlier turns already established;',
+    '- which fields are relevant, and which are noise;',
+    '- which measures and which dimensions carry the answer;',
+    '- whether a comparison is meaningful, and against what;',
+    '- whether a visualisation adds anything at all, and if so which one;',
+    '- which findings deserve to be called out;',
+    '- whether a recommendation is justified by the data, or would just be filler.',
     '',
-    'When the user wants to see, chart, break down, compare, or build/create a report or',
-    'dashboard, call the `emit_report` tool. Describe the report in 1–2 sentences of prose',
-    'as well — the prose is shown to the user, the tool call renders the dashboard.',
+    'Then call `emit_report` with ONLY the sections that earn their place. Prioritise clarity,',
+    'accuracy and relevance over visual volume. A focused report of two sections is a better',
+    'answer than a dashboard of seven, and padding one out with unrelated charts makes the real',
+    'answer harder to find. Say what you built in 1–2 sentences of prose as well — the prose is',
+    'shown in the chat, the tool call renders the report.',
     '',
-    'When the user asks for analysis, insight, a summary, or a document to share,',
-    'also call `write_analysis` — the narrative half of a report, which a spec cannot',
-    'express. It renders above the report and opens any exported document.',
+    'CHOOSING THE SHAPE — match the question, not a house style:',
+    '- "Show the trend / over time / last 6 months" → a small metrics row plus ONE line or area',
+    '  chart grouped by a DATE field. Set `grain` (month/quarter/week) or leave it "auto".',
+    '- "Top / best / worst / biggest N by X" → a `ranking` section. It states the position, the',
+    '  figure and the share of the total, which a bar chart alone only implies. Add a `table`',
+    '  only when the individual rows behind it are genuinely useful.',
+    '- "Compare A with B" / "this month vs last" → a `comparison` section. Set ALL SIX of',
+    '  currentLabel, currentFrom, currentTo, previousLabel, previousFrom, previousTo — the two',
+    '  date pairs are what make it a comparison, and a missing one loses the whole section.',
+    '  Add a chart only if the shape of the change matters.',
+    '- "Why did X change?" → open with a `text` paragraph, then the metrics that evidence it,',
+    '  then a chart of the dimension that explains it, then `insights`. Add `recommendations`',
+    '  only when the data actually supports an action.',
+    '- "Break down by category" → one chart. Donut only for parts of a whole with ≤6 slices;',
+    '  bar for anything with long category names; column for a short ordered axis.',
+    '- A question that is just a question → answer in prose and call NO tools.',
+    '',
+    'What NOT to do: do not add a KPI row to every report out of habit; do not attach a detail',
+    'table unless the rows matter; do not draw two charts of the same breakdown; do not open',
+    'with a paragraph that only restates the title.',
+    '',
+    `TODAY IS ${today}. Use it to resolve "last 30 days", "this month", "Q2" and similar into`,
+    'real dates, and check them against the min/max date in the DATA SUMMARY — if the data ends',
+    'well before today, say so rather than reporting an empty recent window.',
+    '',
+    'CONVERSATION CONTEXT — follow-ups are refinements, not new questions:',
+    '- "Only the last 30 days", "just Q2", "now compare it with Q1", "make it by customer"',
+    '  all refer to the report you just built. Carry the subject, the measures and any filters',
+    '  forward; change only what the user actually changed.',
+    '- The user should never have to restate the data source or the earlier filters.',
+    '- When the report on screen is given to you (see below), that spec is the state of the',
+    '  conversation. Start from it.',
+    '',
+    'IN-REPORT PROSE vs `write_analysis` — they are not the same thing, and doing both',
+    'puts the same sentences on screen twice:',
+    '- `text` / `insights` / `recommendations` SECTIONS are part of the report. Use them to',
+    '  explain and read the figures beside them. This is the normal choice.',
+    '- `write_analysis` is a standalone written brief — an executive summary with numbered',
+    '  findings. It renders ABOVE the report and forms the opening pages of an exported',
+    '  document. Call it when the user asks for a write-up, a summary to share, or a',
+    '  document — not as a companion to insights you already put in the report.',
     '',
     'When the user asks to export, download, save or print, call `export_document`.',
     'Pair it with `write_analysis` (and `emit_report` if none exists yet) so the',
@@ -271,20 +451,29 @@ function systemPrompt(dataContext) {
     'CHANGING A REPORT THAT IS ALREADY ON SCREEN:',
     '- When a report exists, its spec is given to you at the end of the latest user message.',
     '- A report is REPLACED, never patched: to change one thing, call `emit_report` again with',
-    '  the FULL spec — the parts that stay the same, copied across, plus the change.',
+    '  the FULL spec — the sections that stay the same, copied across, plus the change.',
     '- Visual requests ("more compact", "bigger charts", "one colour", "too busy", "simplify")',
-    '  are the `design` block. Content requests (different field, another chart, a filter) are',
+    '  are the `design` block. Content requests (different field, another section, a filter) are',
     '  the rest of the spec. Either way you re-emit the whole thing.',
     '- If a visual request is not expressible in `design`, say so plainly and offer the nearest',
     '  option. Do not claim to have applied a style the schema cannot carry.',
     '',
+    'GROUNDING — this is the rule the whole feature rests on:',
+    '- You NEVER produce figures. You describe the shape of a report and the app computes every',
+    '  number in it from the live dataset. Do not put numbers in a section title or note.',
+    '- In prose, `text` sections, `insights` and `write_analysis`, state ONLY what the DATA',
+    '  SUMMARY below supports. Never invent a revenue, an order count, a product, a date, a',
+    '  percentage or a trend. Describe magnitude in words ("most", "roughly a third", "the',
+    '  largest share") unless the exact figure appears verbatim in the DATA SUMMARY.',
+    '- If the data cannot answer the question, SAY SO and say what would be needed. An honest',
+    '  "this slice has no delivery dates, so a trend cannot be drawn" is a good answer; a',
+    '  plausible-looking report built on a guess is not.',
+    '- A recommendation is your suggestion, not a measurement. Only make one the data supports.',
+    '',
     'Rules:',
     '- Use ONLY field names from the SCHEMA.',
     '- Call each tool at most once per reply.',
-    '- If the user only asks a question, answer in prose and call no tools.',
     '- Never write a report or analysis as JSON in your prose — always use the tools.',
-    '- In `write_analysis`, never state a number the DATA SUMMARY does not contain.',
-    '  Describe magnitude in words instead. The app renders the exact figures.',
     '',
     // The datasets here reach ~11,000,000 rows, and D365 OData cannot GROUP BY or
     // SUM. Counts are always exact and free; sums require reading every matching
@@ -293,23 +482,32 @@ function systemPrompt(dataContext) {
     // that cannot be computed.
     'IMPORTANT — what can and cannot be computed:',
     `- This dataset currently has ${rowCount.toLocaleString()} matching rows.`,
-    '- COUNT is always exact and free, at any size. Prefer "count" KPIs.',
+    '- COUNT is always exact and free, at any size. Prefer "count" metrics.',
     '- Filters on a field marked "enum" in the SCHEMA must use a value from its "values" list.',
     '- "contains" only works on text fields.',
+    '- A trend or a comparison groups a DATE field. Both are cut from the same totalled slice,',
+    '  so a comparison needs BOTH periods inside the report\'s filters — never filter to just',
+    '  the current period and then compare it with the one before.',
+    '- Distinct counts cannot be measured over a period, only over the whole slice.',
     pending
       ? [
-          '- SUMS, AVERAGES, DISTINCT COUNTS and CHARTS ARE NOT AVAILABLE for this slice:',
-          '  it is too large to total. The DATA SUMMARY has no sum_/avg_/top_ entries.',
-          '  DO NOT propose a "sum", "avg" or "distinctCount" KPI, and pass an empty charts array.',
-          '  Instead: answer with count-based KPIs and a table, and tell the user in prose to',
-          '  narrow the slice (date range, or a search term) so totals can be computed.',
+          '- SUMS, AVERAGES, DISTINCT COUNTS, CHARTS, RANKINGS and COMPARISONS ARE NOT AVAILABLE',
+          '  for this slice: it is too large to total. The DATA SUMMARY has no sum_/avg_/top_',
+          '  entries. Use only "count" metrics and a table, and tell the user in prose to narrow',
+          '  the slice (date range, or a search term) so the rest becomes possible.',
         ].join('\n')
-      : '- Sums, averages, distinct counts and charts ARE available — the slice has been totalled.',
+      : '- Sums, averages, distinct counts, charts, rankings and comparisons ARE available — the slice has been totalled.',
     '',
     'SCHEMA (available fields):',
     JSON.stringify(dataContext?.schema ?? [], null, 2),
     '',
-    'DATA SUMMARY (aggregates over the current filtered slice):',
+    // `monthly_<dateField>` is the last twelve months of real, folded rows. It is
+    // the evidence behind a "why did this change?" answer — without it the model
+    // can see the total but has no view of the series, so it can only say that
+    // something moved, never when.
+    'DATA SUMMARY (aggregates over the current filtered slice). `sum_`/`avg_` are totals over',
+    'the whole slice, `top_` are the largest groups of a dimension, and `monthly_<date field>`',
+    'is the recent month-by-month shape of the data — use it to locate WHEN something changed:',
     JSON.stringify(dataContext?.summary ?? {}, null, 2),
     '',
     'SAMPLE ROWS:',

@@ -1,0 +1,17 @@
+:host {
+  display: block;
+}
+
+/*
+ * Prose gets a measure. A paragraph running the full width of a 1400px report
+ * sheet is ~180 characters a line, which is roughly twice what anyone reads
+ * without losing their place returning to the left edge.
+ */
+.narrative {
+  max-width: 68ch;
+  font-size: 0.875rem;
+  line-height: 1.65;
+  color: var(--content);
+  text-wrap: pretty;
+  white-space: pre-line;
+}

@@ -1,7 +1,7 @@
 import { SearchMode } from '../../../core/http/odata-filter.util';
 
 export type FieldType = 'string' | 'number' | 'date' | 'enum';
-export type ValueFormat = 'integer' | 'quantity' | 'currency' | 'date' | 'text';
+export type ValueFormat = 'integer' | 'quantity' | 'currency' | 'percent' | 'date' | 'text';
 
 /** Describes one queryable field so the engine can format and the LLM can reason about it. */
 export interface FieldMeta {

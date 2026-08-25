@@ -1,0 +1,28 @@
+<div class="cmp-grid">
+  @for (item of items(); track $index) {
+    <div class="cmp">
+      <span class="cmp-label">{{ item.label }}</span>
+
+      <div class="cmp-figures">
+        <span class="cmp-current">{{ item.current }}</span>
+        <span class="cmp-delta" [attr.data-sentiment]="item.sentiment" [attr.data-direction]="item.direction">
+          <app-icon [path]="arrow(item)" [size]="13" />
+          <span class="tabular-nums">{{ percent(item) }}</span>
+        </span>
+      </div>
+
+      <!--
+        The baseline, spelled out. "18% up" is only meaningful beside what it is
+        up FROM, and the period names are what make two numbers a comparison
+        rather than two numbers.
+      -->
+      <span class="cmp-baseline">
+        <span class="cmp-period">{{ currentLabel() }}</span>
+        vs
+        <span class="tabular-nums">{{ item.previous }}</span>
+        in <span class="cmp-period">{{ previousLabel() }}</span>
+        <span class="cmp-abs tabular-nums">({{ item.delta }})</span>
+      </span>
+    </div>
+  }
+</div>

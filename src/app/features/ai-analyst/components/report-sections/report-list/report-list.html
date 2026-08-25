@@ -1,0 +1,24 @@
+@if (isAction()) {
+  <ul class="actions">
+    @for (item of items(); track $index) {
+      <li>
+        <span class="action-tick" aria-hidden="true">
+          <app-icon [path]="tick" [size]="13" />
+        </span>
+        <span>{{ item }}</span>
+      </li>
+    }
+  </ul>
+  <!--
+    A recommendation is the model's suggestion, not a measurement. Saying so
+    once, quietly, is what stops it borrowing the authority of the figures it
+    sits beneath.
+  -->
+  <p class="actions-caveat">Suggested by the AI analyst from the figures above — not a computed result.</p>
+} @else {
+  <ul class="insights">
+    @for (item of items(); track $index) {
+      <li>{{ item }}</li>
+    }
+  </ul>
+}

@@ -1,0 +1,35 @@
+<button
+  type="button"
+  class="xm-trigger"
+  [disabled]="disabled()"
+  (click)="toggle($event)"
+  (keydown)="onKeydown($event)"
+  [attr.aria-expanded]="open()"
+  aria-haspopup="menu"
+>
+  <app-icon [path]="icons.download" [size]="14" />
+  Export
+  <span class="xm-chevron" [class.xm-chevron-open]="open()">
+    <app-icon [path]="icons.chevronDown" [size]="13" />
+  </span>
+</button>
+
+@if (open()) {
+  <div class="xm-menu" role="menu" (keydown)="onKeydown($event)">
+    <button type="button" role="menuitem" class="xm-item" (click)="choose('pdf')">
+      <app-icon [path]="icons.pdf" [size]="15" />
+      <span class="flex-1 text-left">PDF</span>
+      <span class="xm-note">Designed</span>
+    </button>
+    <button type="button" role="menuitem" class="xm-item" (click)="choose('html')">
+      <app-icon [path]="icons.html" [size]="15" />
+      <span class="flex-1 text-left">HTML</span>
+      <span class="xm-note">Self-contained</span>
+    </button>
+    <button type="button" role="menuitem" class="xm-item" (click)="choose('excel')">
+      <app-icon [path]="icons.excel" [size]="15" />
+      <span class="flex-1 text-left">Excel</span>
+      <span class="xm-note">Tables &amp; charts</span>
+    </button>
+  </div>
+}

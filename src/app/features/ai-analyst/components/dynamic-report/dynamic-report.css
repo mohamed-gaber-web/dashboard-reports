@@ -5,12 +5,19 @@
 /*
  * The sheet.
  *
- * The report used to have no container of its own: sections sat straight on the
- * page canvas, so nothing gave it an edge or an inch of padding, while every
- * chart and the table each drew a card border of their own. This is the inverse
- * — one padded surface, and everything inside it is plain.
+ * One padded surface, and everything inside it is plain. It also owns the
+ * `--rp-*` scale that the section components read: density is defined ONCE
+ * here and inherits down through emulated encapsulation, which is the only
+ * channel a parent has into a child's styles that does not involve reaching
+ * past the encapsulation boundary.
  */
 .report-sheet {
+  --rp-block-pad: 1.1rem 1.25rem;
+  --rp-inline-pad: 1.25rem;
+  --rp-stat-size: 1.4rem;
+  --rp-stat-gap: 0.9rem 1.25rem;
+  --rp-chart-gap: 1.5rem 1.75rem;
+
   display: flex;
   flex-direction: column;
   background-color: var(--surface);
@@ -30,7 +37,7 @@
   gap: 0.5rem 1rem;
   border-bottom: 1px solid var(--border-soft);
   background: color-mix(in srgb, var(--surface-muted) 45%, transparent);
-  padding: 0.9rem 1.25rem;
+  padding: 0.9rem var(--rp-inline-pad);
 }
 
 .report-heading {
@@ -84,31 +91,23 @@
 /*
  * Every block carries the sheet's padding and a hairline above it, so the
  * report reads as one document with sections rather than as a stack of panels.
- * The rule is on the block, not between elements, so any block can be absent.
+ * The rule is on the block, not between elements, so any block can be absent —
+ * which now happens constantly, since the model chooses the mix.
  */
 .report-block {
-  padding: 1.1rem 1.25rem;
+  padding: var(--rp-block-pad);
 }
 .report-block + .report-block {
   border-top: 1px solid var(--border-soft);
 }
 
-/* The detail table brings its own top hairline and full-bleed rows. */
-.detail {
-  padding: 1.1rem 0 0;
-}
-.detail-head {
+.block-head {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
   justify-content: space-between;
-  gap: 0.4rem 1rem;
-  padding: 0 1.25rem 0.75rem;
-}
-
-.detail-note {
-  font-size: 0.6875rem;
-  color: var(--content-muted);
+  gap: 0.3rem 1rem;
+  margin-bottom: 0.7rem;
 }
 
 /*
@@ -124,6 +123,35 @@
   color: var(--content-faint);
 }
 
+.block-note {
+  font-size: 0.6875rem;
+  line-height: 1.5;
+  color: var(--content-muted);
+  text-wrap: pretty;
+}
+
+/* The detail table runs its rows to the sheet's edges; only its head is inset. */
+.block-detail {
+  padding-inline: 0;
+}
+.block-detail .block-head,
+.block-detail app-report-detail-table {
+  padding-inline: var(--rp-inline-pad);
+}
+
+/*
+ * An opening paragraph is the report's lede. One step up in size and a brand
+ * hairline down its inside edge, so a report that begins with an explanation
+ * looks like it begins with one rather than like a stray caption.
+ */
+.block-lede {
+  border-inline-start: 3px solid var(--color-brand-500);
+  background: color-mix(in srgb, var(--surface-muted) 35%, transparent);
+}
+.block-lede app-report-narrative {
+  font-size: 0.9375rem;
+}
+
 .report-omitted {
   background: color-mix(in srgb, var(--warning) 8%, transparent);
   font-size: 0.75rem;
@@ -131,57 +159,27 @@
   color: var(--content);
 }
 
-/* ── Stats ──────────────────────────────────────────────────────────────── */
-
-.stat-row {
-  display: grid;
-  gap: 0.9rem 1.25rem;
+.report-empty {
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  color: var(--content-muted);
+  text-wrap: pretty;
 }
 
-/*
- * A stat, not a tile: label above, figure below, and one hairline of the
- * palette colour that keys it to the chart it came from. The colour is the
- * whole budget — four saturated gradient blocks made the least important part
- * of the report the loudest thing on screen.
- */
-.stat {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 0.2rem;
-  border-inline-start: 2px solid var(--border-strong);
-  padding-inline-start: 0.7rem;
-}
-
-.stat-label {
-  font-size: 0.6875rem;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
+.report-foot {
+  border-top: 1px solid var(--border-soft);
+  background: color-mix(in srgb, var(--surface-muted) 45%, transparent);
+  padding: 0.5rem var(--rp-inline-pad);
+  font-size: 0.625rem;
+  letter-spacing: 0.04em;
   color: var(--content-faint);
-  /* A generated label can be long; two lines is the cap before it crowds the
-     figure it belongs to. */
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow: hidden;
-}
-
-.stat-value {
-  font-size: 1.4rem;
-  font-weight: 650;
-  line-height: 1.15;
-  letter-spacing: -0.02em;
-  color: var(--content);
-  font-variant-numeric: tabular-nums;
-  overflow-wrap: anywhere;
 }
 
 /* ── Charts ─────────────────────────────────────────────────────────────── */
 
 .chart-grid {
   display: grid;
-  gap: 1.5rem 1.75rem;
+  gap: var(--rp-chart-gap);
 }
 
 /*
@@ -196,29 +194,23 @@
  * What "make it more compact" means, concretely: less air per block and one
  * step off the figures. Nothing is hidden and no column count changes — the
  * same report, closer together, so more of it is on screen at once.
+ *
+ * Every value is a token the children already read, so this is the ONLY place
+ * compact is defined.
  */
-
+.report-sheet.compact {
+  --rp-block-pad: 0.8rem 1rem;
+  --rp-inline-pad: 1rem;
+  --rp-stat-size: 1.2rem;
+  --rp-stat-gap: 0.7rem 1rem;
+  --rp-chart-gap: 1.1rem 1.35rem;
+}
 .compact .report-header {
-  padding: 0.7rem 1rem;
-}
-.compact .report-block {
-  padding: 0.8rem 1rem;
-}
-.compact .detail {
-  padding: 0.8rem 0 0;
-}
-.compact .detail-head {
-  padding: 0 1rem 0.6rem;
-}
-.compact .stat-row {
-  gap: 0.7rem 1rem;
-}
-.compact .stat-value {
-  font-size: 1.2rem;
-}
-.compact .chart-grid {
-  gap: 1.1rem 1.35rem;
+  padding: 0.7rem var(--rp-inline-pad);
 }
 .compact .report-title {
   font-size: 0.9375rem;
+}
+.compact .block-head {
+  margin-bottom: 0.55rem;
 }

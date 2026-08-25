@@ -20,8 +20,8 @@ npm test         # Vitest unit tests
 
 **Run `npm run dev:api` alongside `npm start`.** It holds the secrets and serves
 `/api/token` (D365 auth), `/api/chat` (AI Analyst), `/api/chat-report`
-(Chat Reports) and `/api/ai-providers` (the model picker's feed); the Vite proxy
-forwards all four to it. Put secrets in a git-ignored `.env` (see `.env.example`;
+(Chat Reports), `/api/report-builder` (AI Report Builder) and `/api/ai-providers`
+(the model picker's feed); the Vite proxy forwards all five to it. Put secrets in a git-ignored `.env` (see `.env.example`;
 the dev server auto-loads it): `AZURE_CLIENT_SECRET` (D365) and at least one of
 `ANTHROPIC_API_KEY` / `GEMINI_API_KEY` (AI). Without `dev:api` running, login/data
 and the AI pages return 500 — and note that dev-api itself will not boot unless
@@ -51,6 +51,7 @@ src/app/
     ui/            icon, kpi-card, chart-card, bar-chart, column-chart, line-chart,
                    donut-chart, data-table, status-badge, spinner, empty-state,
                    page-header, provider-switch
+                   (line-chart takes `area` — that toggle IS the line/area distinction)
     models/        chart, series, table-column, badge types
     utils/         format + group-by/aggregate + scale/compare helpers
   layout/          shell (frame), sidebar (module nav), topbar (theme + status)
@@ -58,8 +59,20 @@ src/app/
     dashboard/     Overview page (aggregates module headline numbers)
     sales-order/   services/ models/ pages/{sales-order-list, sales-order-report}
     settings/      Branding & appearance (name, logo, colours, presets, theme)
-    ai-analyst/    Chat → generative dashboard reports (Claude) + Excel/PDF export
+    ai-analyst/    Chat → generative reports (Claude/Gemini) + Excel/PDF export
+                     models/report-spec.model.ts   the section union + computed blocks
+                     services/report-plan.ts       validates model output into a plan
+                     services/time-buckets.ts      day buckets → trends and periods
+                     services/report-engine.*      the plan → real figures
+                     components/report-sections/   one component per section kind
     chat-reports/  Chat → strict-JSON report payload rendered inside the chat bubble
+    report-builder/ Chat → Report DEFINITION (the third generative pattern)
+                     models/report-definition.model.ts  the section union + blocks
+                     services/report-definition.validator.ts  the trust boundary
+                     services/report-composer.service.ts      definition → figures
+                     services/builder-export.service.ts       adapter → ExportService
+                     components/sections/          one component per section kind
+    ai-analyst/analyst-sources.ts   the module list, SHARED by both AI screens
 ```
 
 **MVVM mapping — follow this for every screen:**
@@ -217,13 +230,51 @@ against Claude, and it wins whenever its key is present.
   backend reads `tool_use.input` off the stream (never shown to the user) and
   `ReportEngineService` computes it against the real local dataset, so every figure
   is accurate and no model output is executed. The tool is intentionally not
-  `strict: true`: ReportSpec has many optional fields, and `SpecCompilerService`
+  `strict: true`: ReportSpec has many optional fields, and `report-plan.ts`
   already validates every clause and surfaces refusals via `omitted`.
+- **A report is an ORDERED LIST OF SECTIONS, not a fixed layout.** `ReportSpec.sections`
+  is a closed union of eight kinds — `metrics`, `chart`, `comparison`, `ranking`,
+  `table`, `text`, `insights`, `recommendations` — and the model chooses which
+  appear, how many and in what order. It used to be a fixed `{kpis, charts, table}`
+  triple, so "what are my top products?" and "why did sales fall?" came back as the
+  same dashboard with different numbers. The old triple is still ACCEPTED and
+  normalised into sections (`sectionsOf`), so a spec from an older session renders.
+- **`report-plan.ts` is the seam where model output is validated**, the way
+  `SpecCompilerService` is for filters. Two rules: **drop** a clause that cannot mean
+  anything (unknown field, summing a dimension), and **coerce** one whose intent is
+  clear but whose form is wrong (a line chart over sites is a bar chart) — always
+  recording it in `omitted`. Silently rendering a reshaped chart teaches the user
+  something false; silently dropping one teaches them nothing.
+- **`ReportResult.blocks` is what the renderer draws; `kpis`/`charts`/`table` are
+  derived projections** kept only because the Excel/CSV exports read them. Do not
+  compute them independently — they come out of `blocks`.
+- **The cube folds every date field by DAY** (`AggregatePlan.dateDimensions`). That
+  one addition is what makes a trend line and a period-over-period comparison
+  possible at all: D365 OData cannot group by month, and day divides exactly into
+  week/month/quarter/year, so `time-buckets.ts` rolls up without re-reading D365.
+  Gaps are filled with zeros — a line that skips an empty March draws a straight
+  segment across it, which reads as "flat" instead of "nothing happened".
+- **A comparison needs BOTH periods inside the report's filters.** They are cut from
+  the same folded slice, so filtering to the current period makes the baseline
+  measure zero. The prompt says so; when the earlier window is empty the block says
+  so on screen rather than reporting a −100% fall that is really a filter artefact.
+- **The comparison periods are six FLAT strings on the wire** (`currentFrom`,
+  `previousTo`, …), not two nested `{label, from, to}` objects. Measured against the
+  live endpoint, Gemini dropped `from` from the nested form every time despite
+  `required`, while flat scalars survive. `planPeriod` still reads the nested form as
+  a fallback. Do not "tidy" this back into an object.
+- **Colour never asserts that up is good.** A comparison delta is neutral unless the
+  spec set `higherIsBetter` — more backorder units is not obviously good or bad, and
+  painting every increase green is how a dashboard starts lying.
 - Only **aggregates + schema + sample rows** are sent to the model
   (`DataContextService`), never the full raw dataset. Keep it that way for privacy.
-- **Sources are a list, and the picker scales with it.** `AiReportModel.sources`
-  holds one `AnalystSource` per module (currently Sales Order, Transaction,
-  Purchase Order). The chrome is a **source picker**, not a tab strip — a
+- **Sources are a list, and the picker scales with it.** `ANALYST_SOURCES` in
+  `features/ai-analyst/analyst-sources.ts` holds one `AnalystSource` per module
+  (currently Sales Order, Transaction, Purchase Order) and is **shared with the
+  AI Report Builder** — it moved out of `AiReportModel` when the second consumer
+  appeared, because a module is a property of the app, not of one page's
+  ViewModel, and two copies is how one screen keeps querying a company the other
+  stopped using. The chrome is a **source picker**, not a tab strip — a
   segmented control puts every option on screen, so its width grew with each
   module until the toolbar wrapped. The picker is fixed-width at any list length
   and grows a filter box at six sources (`AiReportComponent.SEARCH_FROM`).
@@ -240,10 +291,24 @@ against Claude, and it wins whenever its key is present.
   the charts and the detail table are the widest things on the page and were the
   ones paying for it. Only `.report-scroll` scrolls; `.chat-dock` is `flex: none`
   so a long conversation grows the chat's own scroller, never the dock.
-- **Few KPIs are capped, not stretched.** One or two tiles keep a tile-sized
-  max-width; three or more fill the row so their edges line up with the cards
-  below. A lone KPI spanning the full width is a band of gradient with a
-  two-character number in the corner.
+- **One section kind, one component, under `@switch`.** The section components live
+  in `components/report-sections/`; `DynamicReportComponent` walks `blocks` and
+  dispatches on `block.kind`. The renderable set must be CLOSED at compile time —
+  the thing choosing between them is LLM output, and an open registry would let an
+  invented string select a component. Same rule as Chat Reports.
+- **Density is one set of `--rp-*` custom properties on `.report-sheet`.** Emulated
+  encapsulation rewrites every selector to require the component's own attribute, so
+  a parent class cannot reach into a child — an inherited custom property is the only
+  channel, and it also keeps "what compact means" defined in exactly one place. Do
+  not thread a `compact` boolean through the section components.
+- **Adding a section kind is four edits**: the spec union in `report-spec.model.ts`,
+  a `plan*` case in `report-plan.ts`, a `build*` case in `ReportEngineService`, and a
+  component under `report-sections/` wired into the renderer's `@switch`. Then the
+  tool schema in `api/chat.js` and the `renderBlock` case in `document-builder.ts`,
+  or the export silently drops it.
+- **Model prose inside the report is bound with `{{ }}`, never `[innerHTML]`.**
+  `text`, `insights` and `recommendations` carry untrusted model output and this
+  contract has no markdown, so interpolation is both simpler and strictly safer.
 - **A source is one entity — the analyst cannot join.** If the data needs a join,
   either narrow the source to the half it can query (as the Sales Order tab does
   on Shatat, withholding the `SalesTable_*` fields) or do the join in a feature
@@ -334,6 +399,212 @@ A second, deliberately different AI screen. Read this before "unifying" the two.
 - **`text_response` is bound with `{{ }}`, never `[innerHTML]`.** It is untrusted
   model output. (The AI Analyst renders Markdown because it escapes first; this
   contract has no markdown, so interpolation is both simpler and safer.)
+- **The screen is pointed at a module** — `sources/chat-report-sources.ts`. Switching
+  clears the transcript: a conversation about backorder lines is nonsense once the
+  schema under it is inventory on hand, and the model would keep answering as
+  though the old figures still applied. Contexts are cached per source, so
+  switching back is instant.
+- **Two ways a module's aggregates are built, and the choice is per module.**
+  `joined` — a feature service already assembles the dataset including columns
+  from a second entity (Sales Order: `SalesOrderService` joins line to header,
+  which is the ONLY reason this screen can group by customer name; the AI Analyst
+  withholds those fields because it cannot join). `analyst` — one entity counted
+  and folded through `AnalystDataService`, which is what makes an 11M-row module
+  safe. Do not "unify" these: switching Sales Order to the generic path silently
+  drops the customer dimension its own starter prompt asks for.
+- **`coverage: 'pending'` is load-bearing here.** Over `MAX_ANALYZE_ROWS` there are
+  no sums at all, and this contract has the MODEL state the figures — so
+  `report-contract.js` emits a hard "do not total anything" block and the UI shows
+  a *Counts only* badge. On the AI Analyst the same situation costs a chart; here
+  it would cost a fabricated number.
+- **Rank by the MEASURE, not just by row count.** `DataContextService` ranks
+  dimensions by how many rows they have, which answers "which warehouse appears
+  most often" — asked "which warehouses hold the most stock", a correctly-grounded
+  model replies that it cannot say. `ReportContextService.topByMeasure` adds
+  `top_<dim>_by_<measure>` for the module's headline measure. Observed live before
+  it existed.
+- **Export is per REPLY, not per screen.** Each answer in the transcript is its own
+  report; one toolbar button would have to guess which, and would guess wrong once
+  the conversation moved on.
+- **Chat Reports has its OWN document builder** (`services/report-document.ts`),
+  deliberately not the AI Analyst's. That one's footer says "every figure computed
+  from Dynamics 365 — not generated by AI", which is true there and false here.
+  The exported file is the copy that gets forwarded to someone who never saw the
+  screen, so it repeats the AI-authored caveat in the masthead AND the footer.
+  Excel puts the same line on the Summary sheet — a spreadsheet is the format most
+  likely to be treated as raw truth.
+
+#### The slice — filtering what a conversation is about
+
+- **The filter is a FORM with an Apply button, unlike the AI Analyst's live one.**
+  There a change costs one free `$count` and alters nothing on screen; here it
+  re-reads the module, may re-fold up to `MAX_ANALYZE_ROWS`, and moves the ground
+  under a conversation in progress. Applying per keystroke would start and abandon
+  one of those per character. `_draft` vs `_filter` in the ViewModel is that
+  distinction — until you press Apply, the badge still describes the numbers you
+  are looking at.
+- **`to` is INCLUSIVE here, and converted before it reaches OData.** The shared
+  `dateRange` helper emits a half-open `lt to`, so "to 31 March" would silently
+  drop the whole of 31 March — a wrong total with no visible cause on the one
+  screen where the model states the totals. `exclusiveEnd()` adds the day in
+  `ReportContextService`, and the in-memory path applies the same rule so the two
+  agree. **Do not "fix" this by changing `dateRange`** — that would silently move
+  the AI Analyst and the Report Builder too.
+- **The slice reaches the MODEL, not just the UI.** `ReportDataContext.slice` is a
+  sentence, and `report-contract.js` turns it into a "THE USER HAS FILTERED THE
+  DATA" block plus a re-titled summary heading. Without it the prompt keeps
+  calling the aggregates "the whole dataset" while they cover three weeks, which
+  is the exact failure this contract cannot absorb. It also tells the model that
+  earlier turns may have been answered under a different filter and must never be
+  reused.
+- **Changing the slice marks the transcript, it does not wipe it.** A `notice`
+  turn (`ChatTurn`) draws a rule across the conversation. Wiping would be data
+  loss over a date change; leaving it unmarked would put two incompatible sets of
+  numbers in one scroll. Notices are UI-only — the wire has two roles and expects
+  them to alternate, so the model learns about the change from the system prompt.
+- **The joined Sales Order path filters IN MEMORY.** It already reads every
+  backorder line to total them exactly, so the slice is applied to the rows in
+  hand: `coverage` stays `exact` for any slice, and changing a date re-filters
+  instantly instead of re-downloading the module. The generic path pushes the
+  same filter into OData through `AnalystDataService.buildFilter`.
+- **A module's filter controls come from its own descriptor** (`filtersFor()`),
+  never hand-written per module — a date range over a module with no date column
+  builds a filter that matches everything and a user who thinks it worked.
+
+#### Loading — the wait is the screen
+
+- **`load()` emits PHASES, not one context.** `counting` → `reading` → `totalling`
+  → `ready`. It used to be a single observable behind one line of "Reading … data",
+  which covered a 300 ms count and a 60-second fold identically and was
+  indistinguishable from a hang. Each phase carries the numbers the UI says out loud.
+- **The fold is the only slow step, and it gets a bar and a way out.** "Skip totals"
+  (`skipTotals()`) abandons it and completes the context **counts-only** — the same
+  `coverage: 'pending'` shape an over-limit module produces, which the prompt and
+  the badge already handle. It is never a partial cube: half-summed totals
+  presented as totals is the exact failure this screen exists to prevent.
+  `takeWhile(…, true)` after the `endWith` is what stops the skip terminator from
+  blanking out a fold that had already succeeded.
+- **The composer is CLOSED until there are real aggregates behind it** (`canChat`).
+  Zero rows is a different state from still-loading and says so, and the
+  placeholder names which one it is. A question asked before the data lands is
+  answered by a model with nothing to ground it — on this contract that is a
+  fabrication, not an empty report.
+- **`sampleRaw` exists so the schema sample does not pay for a second `$count`.**
+  `page()` always asks for the total because a detail table must say what it is a
+  page of; a sample's caller has just counted the same slice itself, and on an
+  11M-row entity that duplicate count is seconds of dead air for a number already
+  in hand.
+- **Contexts are cached per module AND per slice**, and `refresh(sourceId)` drops
+  every slice of a module — a refresh means "the data moved", and a stale sibling
+  slice would be served the moment the user changed a date back.
+
+#### The Executive style — the model writes the document
+
+- **`ReportStyle` picks the SYSTEM PROMPT, not the payload.** `standard` asks for
+  the component vocabulary; `executive` asks for one `html_document` component
+  carrying a designed Arabic RTL financial brief. It is a request-side concept, so
+  a transcript can hold both — switching changes the next answer, not the ones
+  already on screen. Sticky in `rd.chat.style`.
+- **`html_document` renders in `<iframe sandbox>` with NO `allow-scripts` and no
+  `allow-same-origin`.** That frame is the trust boundary — script is inert, the
+  origin is opaque, and the document cannot reach the parent, its storage or the
+  D365 bearer token. This is what lets the report keep its own `<style>` and
+  inline SVG: Angular's sanitiser strips both, so `[innerHTML]` would render a
+  wall of unstyled Arabic. `bypassSecurityTrustHtml` on `srcdoc` is therefore
+  narrowing the defence to the mechanism that works, not removing the only one.
+  **`sandbox` is a STATIC attribute** — Angular refuses it as a binding, and this
+  component depends on that rule rather than working around it.
+  **Never add `allow-scripts` to make the frame self-size.** The height is the
+  parent's job (a tall default plus an Expand toggle) precisely so it cannot be.
+- **This does not break the closed-set rule.** `ReportComponent` is still a union
+  fixed at compile time and an invented `type` still selects nothing. What changed
+  is that one arm carries markup — rendered outside the app's DOM.
+- **The grounding block applies to BOTH styles, unchanged.** A designed document is
+  more persuasive than a bare table, which makes an invented number in one more
+  dangerous, not less — hence the brief's own rule that an uncomputable figure is
+  written `غير متاح` rather than estimated, and that a section the data cannot
+  support keeps its heading so the reader sees what was missing.
+- **Executive gets `max_tokens: 32000`** (`MAX_TOKENS` in `api/chat-report.js`). At
+  16k it runs out mid-document, and a truncated HTML fragment is not a shorter
+  report — it is an unclosed tag and half a balance sheet.
+- **Exports must handle it or lose it.** `report-document.ts` inlines the fragment
+  (an iframe would print one screenful of an eight-section report); the Excel
+  export says on the Summary sheet that a designed report has no rows and names
+  the export that does carry it. A new component kind means updating both.
+- **Sync obligation grew**: `REPORT_TOOL.input_schema` ↔ `ReportPayload` now
+  includes `html_document`, and the parser, the server normaliser, the renderer's
+  `@switch` and both export paths all have a case for it.
+
+#### The Trial Balance module — wired, NOT yet confirmed
+
+- `environment.trialBalance.enabled` is **false**, so the module is absent from both
+  AI pickers. Entity and column names are not portable between F&O tenants and a
+  wrong one is an opaque 400, so it does not ship as a source that fails the first
+  time someone selects it. **Confirm before enabling:**
+  `node scripts/probe-entity.js --search journal` then
+  `node scripts/probe-entity.js --entity <found> --company 003`. Correct
+  `features/ai-analyst/trial-balance-fields.ts` against the second, set `entity`,
+  flip `enabled`. Both AI screens pick it up with no UI edit.
+- **It is the ENTRY level, not a "trial balance" entity.** A trial balance is an
+  aggregate, and this app cannot GROUP BY over OData — the Worker fold sums by
+  main account, which is the same shape every other module uses.
+- **Account TYPE decides whether a real P&L is possible.** Revenue vs expense and
+  asset vs liability live on the main account, not the entry. If the tenant's entry
+  entity has no account-type column the report can total by account but must write
+  `غير متاح` for the statements. Do not add a `MainAccountType` field the probe
+  did not show.
+
+### AI Report Builder (`features/report-builder`, `/api/report-builder`) — the THIRD pattern
+
+A second screen on the AI Analyst's contract — **the model designs, the app
+computes** — built as a separate page so the two can be compared side by side.
+Read this before "unifying" it with the AI Analyst: the plumbing is shared on
+purpose, the VOCABULARY is not.
+
+- **Same guarantee, different vocabulary.** `emit_report` here carries a
+  `ReportDefinition`, not a `ReportSpec`. Nine section kinds (adds `timeline`),
+  six chart marks (adds `pie`), `density` is `minimal`/`standard`/`detailed` —
+  *how much the report says*, not how much padding it has — and `layout` is
+  `executive`/`analytical`/`operational`. The narrative lives on the definition
+  as `summary`, so there is no second `write_analysis` tool and the exported
+  document cannot disagree with the screen.
+- **Insights are tagged OBSERVATION or INTERPRETATION, and they render
+  differently.** That is the point of the screen. "Three customers hold half the
+  units" is readable off the figures; "that suggests a fulfilment bottleneck" is
+  the model's reading and can be wrong while every figure is right. Rendering
+  them identically lets the second borrow the authority of the first.
+  Recommendations are a third thing again — priority, a `rationale` naming the
+  figure they rest on, and one caveat line. **Do not collapse these into one
+  bullet list.**
+- **`report-definition.validator.ts` is the trust boundary**, the way
+  `report-plan.ts` is for the AI Analyst. Same two rules: **drop** a clause that
+  cannot mean anything, **coerce** one whose intent is clear but whose form is
+  wrong (a line chart over sites is a bar chart; a pie over months is a line) —
+  and record it in `issues`, which the report renders.
+- **What is REUSED, not copied**: `AnalystDataService` (count → gate → fold),
+  `DataContextService`, `time-buckets.ts`, `SpecCompilerService`, the shared UI
+  charts, `AiProviderService`, and `ExportService` + `document-builder.ts` for
+  every export. `analyst-sources.ts` holds the module list for BOTH AI screens —
+  a module is a property of the app, not of one page's ViewModel.
+- **Exports go through an ADAPTER, not a second renderer.**
+  `builder-export.service.ts` maps blocks onto the shape `document-builder.ts`
+  already renders, so HTML and PDF stay one code path. Three kinds have no exact
+  counterpart and convert to the nearest honest thing: `pie` → donut, `timeline`
+  → an ordered column chart, claim tags → a text prefix. Nothing is dropped
+  silently. Adding a section kind means updating that mapping too, or the export
+  loses it.
+- **Adding a section kind is five edits**: the union in
+  `report-definition.model.ts`, a `validate*` case, a `build*` case in
+  `ReportComposerService`, a component under `components/sections/` wired into
+  the canvas's `@switch`, and the `SECTION` schema in `api/report-builder.js` —
+  then the adapter case in `builder-export.service.ts`.
+- **Density and layout reach the section components as inherited `--rb-*` custom
+  properties on `.rb-sheet`, never as a `compact` boolean.** Emulated
+  encapsulation means a parent class cannot reach into a child, and this keeps
+  "what minimal means" in one block of declarations instead of nine component
+  APIs. Same rule as the AI Analyst's `--rp-*`.
+- **The `emit_report` schema in `api/report-builder.js` must stay in sync with
+  `ReportDefinition`** in `features/report-builder/models/report-definition.model.ts`.
 
 ### Gotchas (do not re-break)
 
@@ -362,6 +633,10 @@ A second, deliberately different AI screen. Read this before "unifying" the two.
   `/api/chat` is a string *prefix* and so already matches `/api/chat-report`; they
   work today only because both target the same host with no path rewrite. Diverge
   them and the explicit `/api/chat-report` entry becomes load-bearing.
+  **`/api/report-builder` is different**: it is NOT a suffix of `/api/chat`, so its
+  proxy entry is load-bearing today. Without it the route falls through to the dev
+  server and returns `index.html`, which the SSE client reads as a stream of
+  nothing — a page that hangs with no error rather than one that fails.
   If a route targets `:3001` and dev-api isn't running, the proxy returns **503 with
   a message naming the fix** (see the first gotcha). The
   dev-api calls Azure server-to-server (no browser `Origin`), which also sidesteps the

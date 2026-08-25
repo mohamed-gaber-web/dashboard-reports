@@ -1,0 +1,30 @@
+<!--
+  `variant="plain"` because this card sits INSIDE the padded report sheet. A
+  card nested in a card draws a second border a pixel inside the first and pays
+  for the same padding twice.
+-->
+<app-chart-card variant="plain" [title]="chart().title" [subtitle]="subtitle()">
+  @switch (chart().type) {
+    @case ('donut') {
+      <app-donut-chart [data]="chart().data" [format]="format()" />
+    }
+    @case ('column') {
+      <app-column-chart [labels]="labels()" [series]="series()" [format]="format()" />
+    }
+    @case ('line') {
+      <!-- A plain line: the shape is the message, so no wash competes with it. -->
+      <app-line-chart
+        [labels]="labels()"
+        [series]="series()"
+        [format]="format()"
+        [area]="false"
+      />
+    }
+    @case ('area') {
+      <app-line-chart [labels]="labels()" [series]="series()" [format]="format()" [area]="true" />
+    }
+    @default {
+      <app-bar-chart [data]="chart().data" [format]="format()" />
+    }
+  }
+</app-chart-card>

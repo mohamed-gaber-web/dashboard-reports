@@ -17,7 +17,7 @@ export type TemplateType = 'kpi_overview' | 'detailed_analytics' | 'custom_repor
 export type ChartType = 'bar' | 'line' | 'pie' | 'doughnut';
 
 /** Discriminator for the `components[]` union. */
-export type ComponentType = 'kpi_grid' | 'chart' | 'table';
+export type ComponentType = 'kpi_grid' | 'chart' | 'table' | 'html_document';
 
 /** One metric tile inside a {@link KpiGridComponentSpec}. */
 export interface KpiItem {
@@ -62,8 +62,47 @@ export interface TableComponentSpec {
   rows: string[][];
 }
 
+/**
+ * A whole report as one self-contained HTML fragment, authored by the model.
+ *
+ * ## Why this exists at all
+ *
+ * The other three components are a closed vocabulary the app renders: the model
+ * chooses tiles, series and rows, and the app decides what they look like. The
+ * Executive style inverts that — it asks for a designed document, with its own
+ * type scale, its own grid, its own inline SVG charts and its own reading
+ * direction. None of that can be expressed as `{type:'chart', labels, datasets}`,
+ * and adding forty style knobs to the schema to approximate it would be worse
+ * than the thing it replaces.
+ *
+ * ## Why this does NOT break the closed-set rule
+ *
+ * The rule is that an LLM-authored `type` must never select a component by
+ * name — and it still cannot: this is one more arm of a union fixed at compile
+ * time. What it carries is markup, and markup is not rendered into the
+ * application's DOM. `HtmlDocumentComponent` puts it inside a fully-restricted
+ * `<iframe sandbox>` — no scripts, opaque origin, no access to the parent
+ * document, its cookies, its storage or its tokens. The frame is the trust
+ * boundary; the sanitiser is not, which is why the CSS and the SVG survive.
+ */
+export interface HtmlDocumentComponentSpec {
+  type: 'html_document';
+  /**
+   * The fragment. Body-level markup with an optional `<style>` and inline
+   * `<svg>` — no `<html>`, `<head>`, `<body>` or `<script>`; the renderer
+   * supplies the document around it, and the sandbox makes any script inert.
+   */
+  html: string;
+  /** Names the document for the frame's accessible title and the export filename. */
+  title?: string;
+}
+
 /** A node in the report body. Discriminated on `type` — the renderer switches on it. */
-export type ReportComponent = KpiGridComponentSpec | ChartComponentSpec | TableComponentSpec;
+export type ReportComponent =
+  | KpiGridComponentSpec
+  | ChartComponentSpec
+  | TableComponentSpec
+  | HtmlDocumentComponentSpec;
 
 /**
  * One complete AI reply.

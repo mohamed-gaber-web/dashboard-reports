@@ -1,0 +1,8 @@
+<div class="stat-row" [class]="columns()">
+  @for (kpi of items(); track $index) {
+    <div class="stat" [style.borderInlineStartColor]="accent($index)">
+      <span class="stat-label">{{ kpi.label }}</span>
+      <span class="stat-value">{{ kpi.value }}</span>
+    </div>
+  }
+</div>

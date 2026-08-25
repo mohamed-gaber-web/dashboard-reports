@@ -1,0 +1,11 @@
+.rb-table-cap {
+  margin-top: 0.6rem;
+  font-size: 0.73rem;
+  line-height: 1.5;
+  color: var(--color-muted);
+}
+
+.rb-table-cap strong {
+  font-weight: 600;
+  color: var(--color-content);
+}

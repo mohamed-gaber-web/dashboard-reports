@@ -1,0 +1,37 @@
+@if (rows().length) {
+  <ol class="rb-rank">
+    <li class="rb-rank-head" aria-hidden="true">
+      <span class="rb-rank-pos"></span>
+      <span class="rb-rank-name">Name</span>
+      <span class="rb-rank-value">{{ measureLabel() }}</span>
+      <span class="rb-rank-share">Share</span>
+    </li>
+
+    @for (row of rows(); track row.label) {
+      <li class="rb-rank-row">
+        <span class="rb-rank-pos" [class.rb-rank-lead]="leading(row)">{{ row.rank }}</span>
+
+        <span class="rb-rank-name" [title]="row.label">
+          {{ row.label }}
+          @if (showBars()) {
+            <!--
+              The bar sits UNDER the name rather than in its own column: the name
+              is what is being ranked, so keeping them together means the eye
+              reads one thing instead of two aligned things.
+            -->
+            <span class="rb-rank-track">
+              <span class="rb-rank-bar" [style.width.%]="row.widthPct"></span>
+            </span>
+          }
+        </span>
+
+        <span class="rb-rank-value tabular-nums">{{ row.display }}</span>
+        <span class="rb-rank-share tabular-nums">{{ row.sharePct }}%</span>
+      </li>
+    }
+  </ol>
+} @else {
+  <p class="rb-rank-empty">
+    Nothing to rank — this slice has no groups for that field. Total the rows, or widen the filter.
+  </p>
+}

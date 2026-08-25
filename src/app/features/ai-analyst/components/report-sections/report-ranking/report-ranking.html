@@ -1,0 +1,39 @@
+@if (rows().length) {
+  <ol class="rank-list">
+    <li class="rank-head" aria-hidden="true">
+      <span class="rank-pos"></span>
+      <span class="rank-label">Name</span>
+      <span class="rank-value">{{ measureLabel() }}</span>
+      <span class="rank-share">Share</span>
+    </li>
+
+    @for (row of rows(); track row.label) {
+      <li class="rank-row">
+        <span class="rank-pos" [class.rank-pos-lead]="leading(row)">{{ row.rank }}</span>
+
+        <span class="rank-label" [title]="row.label">
+          {{ row.label }}
+          @if (chart()) {
+            <!-- The bar sits UNDER the name rather than in its own column: the
+                 name is what is being ranked, so keeping them together means the
+                 eye reads one thing, not two aligned things. -->
+            <span class="rank-track">
+              <span
+                class="rank-bar"
+                [style.width.%]="row.widthPct"
+                [style.backgroundColor]="barColor()"
+              ></span>
+            </span>
+          }
+        </span>
+
+        <span class="rank-value tabular-nums">{{ row.display }}</span>
+        <span class="rank-share tabular-nums">{{ row.sharePct }}%</span>
+      </li>
+    }
+  </ol>
+} @else {
+  <p class="rank-empty">
+    Nothing to rank — this slice has no groups for that field. Total the rows, or widen the filter.
+  </p>
+}

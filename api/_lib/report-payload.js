@@ -184,6 +184,46 @@ function normalizeTable(raw, dropped) {
   return { type: 'table', title, headers, rows };
 }
 
+/**
+ * The Executive style's whole report, as one HTML fragment.
+ *
+ * Not sanitised, and that is the design: the browser renders it inside a
+ * fully-restricted `<iframe sandbox>` with no scripts and an opaque origin, so
+ * the frame is the trust boundary. Stripping tags here would break the `<style>`
+ * block and the inline SVG the document consists of while buying nothing — a
+ * `<script>` that cannot execute is inert markup.
+ *
+ * What IS enforced: a size cap (a resource guard), and the wrapper elements the
+ * renderer supplies itself. A fragment that arrives with its own `<html>` or
+ * `<body>` would nest a second document inside the one we build, so those are
+ * unwrapped rather than rejected — the report inside them is fine.
+ */
+function normalizeHtmlDocument(raw, dropped) {
+  let html = typeof raw.html === 'string' ? raw.html.trim() : '';
+  if (!html) {
+    dropped.push('The designed report was dropped: it arrived with no HTML.');
+    return null;
+  }
+
+  // Strip a document shell if the model wrapped one around the fragment.
+  const body = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+  if (body) html = body[1].trim();
+  html = html.replace(/<\/?(?:html|head|body|!doctype)[^>]*>/gi, '').trim();
+
+  if (html.length > LIMITS.htmlDocument) {
+    dropped.push(
+      `The designed report was ${html.length.toLocaleString()} characters and was cut to ` +
+        `${LIMITS.htmlDocument.toLocaleString()}. Ask for a shorter report — some of it is missing.`,
+    );
+    html = html.slice(0, LIMITS.htmlDocument);
+  }
+
+  const title = str(raw.title, 160);
+  const component = { type: 'html_document', html };
+  if (title) component.title = title;
+  return component;
+}
+
 function normalizeComponent(raw, dropped) {
   if (!raw || typeof raw !== 'object') return null;
   switch (raw.type) {
@@ -193,6 +233,8 @@ function normalizeComponent(raw, dropped) {
       return normalizeChart(raw, dropped);
     case 'table':
       return normalizeTable(raw, dropped);
+    case 'html_document':
+      return normalizeHtmlDocument(raw, dropped);
     default:
       dropped.push(`Unsupported component type “${str(raw.type, 40) || '(missing)'}” was skipped.`);
       return null;

@@ -1,0 +1,348 @@
+<!--
+  One control bar, then a workspace that fills the remaining height. Everything
+  above the workspace is the answer to "what happens when I ask a question?":
+  this module, this slice, that model.
+-->
+<section class="rbp-bar card card-lg">
+  <div class="rbp-row">
+    <div class="flex min-w-0 items-center gap-3">
+      <span class="rbp-mark">
+        <app-icon [path]="icons.spark" [size]="18" />
+      </span>
+      <div class="min-w-0">
+        <h1 class="text-base font-bold leading-tight tracking-tight text-content">
+          AI Report Builder
+        </h1>
+        <p class="truncate text-xs text-muted">
+          Ask in plain language — the AI composes the report, the app computes every figure
+        </p>
+      </div>
+    </div>
+
+    <!--
+      Module picker. A native select on the shared `.select` primitive rather
+      than a hand-built listbox: it is keyboard- and screen-reader-correct for
+      free, it stays one fixed-width control however long the module list grows,
+      and CLAUDE.md is explicit that form controls are not to be re-invented per
+      feature.
+    -->
+    <label class="rbp-source select-wrap">
+      <span class="sr-only">Data source</span>
+      <select
+        class="select"
+        [value]="model.activeId()"
+        (change)="onSourceChange($event)"
+        aria-label="Data source"
+      >
+        @for (source of model.sources; track source.id) {
+          <option [value]="source.id">{{ source.label }}</option>
+        }
+      </select>
+      <span class="select-chevron" aria-hidden="true">
+        <app-icon [path]="icons.chevronDown" [size]="14" />
+      </span>
+    </label>
+
+    <!--
+      Which model answers. Beside the module picker because the two together are
+      the whole answer to "what is about to happen". It renders nothing when only
+      one provider is configured.
+    -->
+    <app-provider-switch
+      [providers]="model.aiProviders()"
+      [selected]="model.aiProviderId()"
+      [busy]="model.busy()"
+      (selectedChange)="model.setAiProvider($event)"
+    />
+
+    @if (model.hasReport()) {
+      <div class="rbp-actions ml-auto">
+        <button
+          type="button"
+          class="btn-ghost btn-sm"
+          (click)="model.retry()"
+          [disabled]="model.busy()"
+          title="Ask the last question again"
+        >
+          <app-icon [path]="icons.retry" [size]="14" />
+          Regenerate
+        </button>
+
+        <button type="button" class="btn-ghost btn-sm" (click)="copyReport()">
+          <app-icon [path]="copied() ? icons.check : icons.copy" [size]="14" />
+          {{ copied() ? 'Copied' : 'Copy' }}
+        </button>
+
+        <div class="rbp-menu-wrap">
+          <button
+            type="button"
+            class="btn-ghost btn-sm"
+            (click)="toggleExport($event)"
+            [attr.aria-expanded]="exportOpen()"
+            aria-haspopup="menu"
+          >
+            <app-icon [path]="icons.download" [size]="14" />
+            Export
+            <span class="rbp-chevron" [class.rbp-chevron-open]="exportOpen()">
+              <app-icon [path]="icons.chevronDown" [size]="13" />
+            </span>
+          </button>
+
+          @if (exportOpen()) {
+            <div class="rbp-menu" role="menu" (click)="$event.stopPropagation()">
+              <p class="rbp-menu-group">Document</p>
+              <button type="button" role="menuitem" class="rbp-menu-item" (click)="runExport('pdf')">
+                <app-icon [path]="icons.pdf" [size]="15" />
+                <span class="flex-1 text-left">PDF</span>
+                <span class="rbp-menu-note">Print-ready</span>
+              </button>
+              <button type="button" role="menuitem" class="rbp-menu-item" (click)="runExport('html')">
+                <app-icon [path]="icons.html" [size]="15" />
+                <span class="flex-1 text-left">HTML</span>
+                <span class="rbp-menu-note">Self-contained</span>
+              </button>
+
+              <p class="rbp-menu-group">Data</p>
+              <button type="button" role="menuitem" class="rbp-menu-item" (click)="runExport('excel')">
+                <app-icon [path]="icons.excel" [size]="15" />
+                <span class="flex-1 text-left">Excel</span>
+                <span class="rbp-menu-note">This report</span>
+              </button>
+              <!--
+                Only when the report actually has detail rows. A report can be a
+                ranking and nothing else, and the CSV is built from the table's
+                columns — offering it there would be a download that silently did
+                nothing.
+              -->
+              @if (model.hasDetailTable()) {
+                <button type="button" role="menuitem" class="rbp-menu-item" (click)="runCsv()">
+                  <app-icon [path]="icons.excel" [size]="15" />
+                  <span class="flex-1 text-left">Full CSV</span>
+                  <span class="rbp-menu-note">Every row</span>
+                </button>
+              }
+            </div>
+          }
+        </div>
+      </div>
+    }
+  </div>
+
+  <!--
+    The slice.
+
+    It exists because D365 OData cannot sum or group — only count, filter and
+    page. Counting is free even across 11M rows, so the exact size of the current
+    slice is always on screen, and totalling is only offered when it is actually
+    possible. Narrowing first is not a limitation being apologised for; it is
+    what makes the figures real.
+  -->
+  <div class="rbp-row rbp-row-filters">
+    <label class="rbp-field rbp-field-search">
+      <span class="field-label">Search</span>
+      <span class="field-wrap">
+        <span class="field-icon">
+          <app-icon [path]="icons.search" [size]="14" />
+        </span>
+        <input
+          type="search"
+          [value]="model.filter().search ?? ''"
+          (input)="onSearch($event)"
+          placeholder="Order, item, serial or reference…"
+          class="field field-sm field-search"
+        />
+      </span>
+    </label>
+
+    <fieldset class="rbp-field rbp-field-range">
+      <legend class="field-label">Date range</legend>
+      <div class="rbp-range">
+        <input
+          type="date"
+          [value]="model.filter().from ?? ''"
+          [attr.max]="model.filter().to || null"
+          (change)="onFrom($event)"
+          aria-label="From date"
+          class="field field-sm"
+        />
+        <span class="rbp-dash" aria-hidden="true">–</span>
+        <input
+          type="date"
+          [value]="model.filter().to ?? ''"
+          [attr.min]="model.filter().from || null"
+          (change)="onTo($event)"
+          aria-label="To date"
+          class="field field-sm"
+        />
+      </div>
+    </fieldset>
+
+    @if (model.hasFilter()) {
+      <button type="button" (click)="model.clearFilter()" class="btn-ghost btn-sm rbp-clear">
+        <app-icon [path]="icons.close" [size]="14" />
+        Clear
+      </button>
+    }
+
+    <!-- The count. Exact, free, and the basis of every decision below it. -->
+    <div class="ml-auto flex flex-wrap items-center gap-2.5">
+      @if (model.counting()) {
+        <span class="pill pill-neutral">Counting…</span>
+      } @else if (model.dataError(); as error) {
+        <span class="text-sm font-medium text-danger">{{ error }}</span>
+        <button type="button" (click)="model.refreshCount()" class="btn-ghost btn-sm">
+          Try again
+        </button>
+      } @else if (model.rowCount(); as count) {
+        <span class="rbp-count">
+          <app-icon [path]="icons.database" [size]="13" />
+          <strong class="tabular-nums text-content">{{ count.toLocaleString() }}</strong>
+          rows
+        </span>
+
+        @if (model.folding()) {
+          <span class="pill pill-info tabular-nums">Totalling {{ model.foldProgress() }}%</span>
+          <button type="button" (click)="model.cancelAnalyze()" class="btn-ghost btn-sm">
+            Cancel
+          </button>
+        } @else if (model.cube()) {
+          <span class="pill pill-ok">
+            <app-icon [path]="icons.check" [size]="12" />
+            Totals ready
+          </span>
+        } @else if (model.tooLarge()) {
+          <span class="pill pill-warn">Too many rows to total</span>
+        } @else if (model.canAnalyze()) {
+          <button type="button" (click)="model.analyze()" class="btn-primary btn-sm">
+            Total these rows
+          </button>
+        }
+      }
+    </div>
+  </div>
+
+  <!--
+    The honest refusal. The exact size is known for free, so it is stated and a
+    narrower filter is asked for — rather than starting a twenty-minute crawl
+    behind a spinner, or quietly totalling the first few thousand rows.
+  -->
+  @if (model.tooLarge() && !model.folding()) {
+    <p class="rbp-note">
+      Counting, searching and browsing work across all
+      {{ (model.rowCount() ?? 0).toLocaleString() }} rows. Sums, charts and rankings need every
+      matching row read, so they’re capped at {{ model.analyzeLimit.toLocaleString() }} — narrow
+      with a date range or a search term, then total the result.
+    </p>
+  }
+</section>
+
+<div class="rbp-workspace">
+  <main class="rbp-report-pane">
+    <div class="rbp-report-scroll">
+      @if (model.report(); as report) {
+        <div class="animate-fade">
+          <app-report-canvas [report]="report" />
+
+          <!--
+            Refinements sit UNDER the report, not in the toolbar: they act on
+            what you have just read, and each is a sentence sent through the same
+            path as anything typed into the composer.
+          -->
+          <div class="rbp-refine">
+            <span class="rbp-refine-label">
+              <app-icon [path]="icons.wand" [size]="13" />
+              Refine
+            </span>
+            @for (item of refinements; track item.label) {
+              <button
+                type="button"
+                class="rbp-refine-chip"
+                [disabled]="model.busy()"
+                (click)="model.refine(item.prompt)"
+              >
+                {{ item.label }}
+              </button>
+            }
+          </div>
+        </div>
+      } @else if (model.busy()) {
+        <!--
+          The loading experience. A blank pane for eight seconds reads as a hang,
+          and these stages are real work — the request, the reply, then counting
+          and folding D365 rows before any figure can exist.
+        -->
+        <app-skeleton variant="report" />
+      } @else if (model.counting() && model.rowCount() === null) {
+        <app-skeleton variant="report" />
+      } @else {
+        <div class="rbp-starter card card-lg">
+          <span class="rbp-starter-mark">
+            <app-icon [path]="icons.spark" [size]="26" />
+          </span>
+
+          <h2 class="rbp-starter-title">What would you like to know?</h2>
+          <p class="rbp-starter-lede">
+            Ask anything about <strong>{{ model.activeSource().label }}</strong>. The AI decides
+            what belongs in the report — a ranking, a trend, a comparison, or three figures and a
+            sentence — and the app computes every number in it from Dynamics 365. Nothing on the
+            page is generated prose pretending to be a figure.
+          </p>
+
+          <!--
+            What the builder is pointed at, right now. The empty state is the one
+            screen with room to say what will happen, and it is also where the
+            answer to "why is the composer disabled?" belongs.
+          -->
+          <div class="rbp-scope">
+            <span class="rbp-scope-source">
+              <app-icon [path]="icons.database" [size]="14" />
+              {{ model.activeSource().label }}
+            </span>
+            @if (model.activeSource().description; as description) {
+              <span class="rbp-scope-desc">{{ description }}</span>
+            }
+            <span class="rbp-scope-state">
+              @if (model.counting()) {
+                Counting this slice…
+              } @else if (model.dataError(); as error) {
+                <span class="text-danger">{{ error }}</span>
+              } @else if (model.rowCount(); as count) {
+                <strong class="tabular-nums text-content">{{ count.toLocaleString() }}</strong>
+                rows
+                @if (model.cube()) {
+                  <span class="pill pill-ok">Totals ready</span>
+                } @else if (model.tooLarge()) {
+                  <span class="pill pill-warn">Counts only — narrow to total</span>
+                } @else if (model.canAnalyze()) {
+                  <span class="pill pill-neutral">Totals computed on demand</span>
+                }
+              }
+            </span>
+          </div>
+        </div>
+      }
+    </div>
+  </main>
+
+  <!--
+    Chat dock. A fixed band at the bottom of the workspace — it does not grow
+    with the conversation and does not scroll away with the report, so the
+    composer is in the same place on every turn.
+  -->
+  <aside class="rbp-dock" [class.rbp-dock-collapsed]="chatCollapsed()">
+    <app-builder-chat
+      [messages]="model.turns()"
+      [streaming]="model.streaming()"
+      [busy]="model.busy()"
+      [stage]="model.stage()"
+      [error]="model.chatError()"
+      [suggestions]="model.suggestions()"
+      [disabled]="!model.ready()"
+      [disabledReason]="model.blockedReason()"
+      (send)="model.send($event)"
+      (stop)="model.stop()"
+      (retry)="model.retry()"
+      (collapsedChange)="chatCollapsed.set($event)"
+    />
+  </aside>
+</div>

@@ -51,4 +51,16 @@ export const environment = {
     lineEntity: 'SalesLineBiEntities',
     headerEntity: 'SalesTableBiEntities' as string | undefined,
   },
+
+  /**
+   * The general-ledger module behind the Executive financial report. Off until
+   * the entity is confirmed against the tenant — see the dev environment for
+   * the two probe commands that confirm it.
+   */
+  trialBalance: {
+    enabled: false,
+    source: SHATAT,
+    company: '003',
+    entity: 'GeneralJournalAccountEntries',
+  },
 };
