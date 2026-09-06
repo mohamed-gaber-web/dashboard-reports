@@ -1,0 +1,19 @@
+<!--
+  `sandbox` is written STATICALLY and empty. Empty means every restriction is
+  applied: no scripts, no same-origin, no forms, no popups, no top-level
+  navigation, no modals, no pointer lock, no downloads.
+
+  Angular refuses `[sandbox]` as a binding, which is what guarantees this cannot
+  be weakened at runtime. Do not convert it. See artifact-frame.ts for why
+  `allow-scripts` is deliberately not taken.
+-->
+<div class="af-stage" [style.max-width]="maxWidth()">
+  <iframe
+    class="af-frame"
+    sandbox=""
+    referrerpolicy="no-referrer"
+    loading="eager"
+    [title]="title()"
+    [srcdoc]="srcdoc()"
+  ></iframe>
+</div>

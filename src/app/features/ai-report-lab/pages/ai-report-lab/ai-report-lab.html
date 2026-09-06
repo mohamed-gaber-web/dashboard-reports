@@ -1,0 +1,381 @@
+<!--
+  Control bar. Everything above the workspace answers "what happens when I ask?":
+  this module, this slice, that model.
+-->
+<section class="rl-bar card card-lg">
+  <div class="rl-row">
+    <div class="flex min-w-0 items-center gap-3">
+      <span class="rl-mark">
+        <app-icon [path]="icons.lab" [size]="18" />
+      </span>
+      <div class="min-w-0">
+        <h1 class="flex items-center gap-2 text-base font-bold leading-tight tracking-tight text-content">
+          AI Report Lab
+          <span class="pill pill-warn">Prototype</span>
+        </h1>
+        <p class="truncate text-xs text-muted">
+          The AI designs and writes the whole report as HTML/SVG — rendered in a sandbox
+        </p>
+      </div>
+    </div>
+
+    <!--
+      Module picker. A native select on the shared `.select` primitive rather than
+      a hand-built listbox: keyboard- and screen-reader-correct for free, one
+      fixed-width control however long the module list grows, and CLAUDE.md is
+      explicit that form controls are not re-invented per feature.
+    -->
+    <label class="rl-source select-wrap">
+      <span class="sr-only">Data source</span>
+      <select
+        class="select"
+        [value]="model.activeId()"
+        (change)="onSourceChange($event)"
+        aria-label="Data source"
+      >
+        @for (source of model.sources; track source.id) {
+          <option [value]="source.id">{{ source.label }}</option>
+        }
+      </select>
+      <span class="select-chevron" aria-hidden="true">
+        <app-icon [path]="icons.chevronDown" [size]="14" />
+      </span>
+    </label>
+
+    <app-provider-switch
+      [providers]="model.aiProviders()"
+      [selected]="model.aiProviderId()"
+      [busy]="model.busy()"
+      (selectedChange)="model.setAiProvider($event)"
+    />
+
+    @if (model.hasArtifact()) {
+      <div class="rl-actions ml-auto">
+        <button
+          type="button"
+          class="btn-ghost btn-sm"
+          (click)="model.retry()"
+          [disabled]="model.busy()"
+          title="Ask the last question again"
+        >
+          <app-icon [path]="icons.retry" [size]="14" />
+          Regenerate
+        </button>
+
+        <div class="rl-menu-wrap">
+          <button
+            type="button"
+            class="btn-ghost btn-sm"
+            (click)="toggleExport($event)"
+            [disabled]="model.exporting()"
+            [attr.aria-expanded]="exportOpen()"
+            aria-haspopup="menu"
+          >
+            <app-icon [path]="icons.download" [size]="14" />
+            {{ model.exporting() ? 'Exporting…' : 'Export' }}
+            <span class="rl-chevron" [class.rl-chevron-open]="exportOpen()">
+              <app-icon [path]="icons.chevronDown" [size]="13" />
+            </span>
+          </button>
+
+          @if (exportOpen()) {
+            <!--
+              Both entries render the SAME document string the preview shows —
+              there is no second renderer, so a PDF cannot come out looking like a
+              different report from the one that was approved on screen.
+            -->
+            <div class="rl-menu" role="menu" (click)="$event.stopPropagation()">
+              <button type="button" role="menuitem" class="rl-menu-item" (click)="runExport('html')">
+                <app-icon [path]="icons.html" [size]="15" />
+                <span class="flex-1 text-left">HTML</span>
+                <span class="rl-menu-note">Standalone file</span>
+              </button>
+              <button type="button" role="menuitem" class="rl-menu-item" (click)="runExport('pdf')">
+                <app-icon [path]="icons.pdf" [size]="15" />
+                <span class="flex-1 text-left">PDF</span>
+                <span class="rl-menu-note">Print dialog</span>
+              </button>
+            </div>
+          }
+        </div>
+      </div>
+    }
+  </div>
+
+  <!--
+    The slice.
+
+    It exists because D365 OData cannot sum or group — only count, filter and
+    page. Counting is free even across 11M rows, so the exact size of the current
+    slice is always on screen and totalling is only offered when it is actually
+    possible. Narrowing first is not a limitation being apologised for; on this
+    screen it is what makes the figures real, because the MODEL writes them.
+  -->
+  <div class="rl-row rl-row-filters">
+    <label class="rl-field rl-field-search">
+      <span class="field-label">Search</span>
+      <span class="field-wrap">
+        <span class="field-icon">
+          <app-icon [path]="icons.search" [size]="14" />
+        </span>
+        <input
+          type="search"
+          [value]="model.filter().search ?? ''"
+          (input)="onSearch($event)"
+          placeholder="Order, item, serial or reference…"
+          class="field field-sm field-search"
+        />
+      </span>
+    </label>
+
+    <fieldset class="rl-field rl-field-range">
+      <legend class="field-label">Date range</legend>
+      <div class="rl-range">
+        <input
+          type="date"
+          [value]="model.filter().from ?? ''"
+          [attr.max]="model.filter().to || null"
+          (change)="onFrom($event)"
+          aria-label="From date"
+          class="field field-sm"
+        />
+        <span class="rl-dash" aria-hidden="true">–</span>
+        <input
+          type="date"
+          [value]="model.filter().to ?? ''"
+          [attr.min]="model.filter().from || null"
+          (change)="onTo($event)"
+          aria-label="To date"
+          class="field field-sm"
+        />
+      </div>
+    </fieldset>
+
+    @if (model.hasFilter()) {
+      <button type="button" (click)="model.clearFilter()" class="btn-ghost btn-sm rl-clear">
+        <app-icon [path]="icons.close" [size]="14" />
+        Clear
+      </button>
+    }
+
+    <div class="ml-auto flex flex-wrap items-center gap-2.5">
+      @if (model.counting()) {
+        <span class="pill pill-neutral">Reading the module…</span>
+      } @else if (model.dataError(); as error) {
+        <span class="text-sm font-medium text-danger">{{ error }}</span>
+        <button type="button" (click)="model.refreshData()" class="btn-ghost btn-sm">Try again</button>
+      } @else {
+        <span class="rl-count">
+          <app-icon [path]="icons.database" [size]="13" />
+          <strong class="tabular-nums text-content">
+            {{ (model.rowCount() ?? 0).toLocaleString() }}
+          </strong>
+          rows
+        </span>
+
+        @if (model.folding()) {
+          <span class="pill pill-info tabular-nums">Totalling {{ model.foldProgress() }}%</span>
+          <button type="button" (click)="model.cancelAnalyze()" class="btn-ghost btn-sm">Cancel</button>
+        } @else if (model.cube()) {
+          <span class="pill pill-ok">
+            <app-icon [path]="icons.check" [size]="12" />
+            Totals ready
+          </span>
+        } @else if (model.tooLarge()) {
+          <span class="pill pill-warn">Too many rows to total</span>
+        } @else if (model.canAnalyze()) {
+          <button type="button" (click)="model.analyze()" class="btn-primary btn-sm">
+            Total these rows
+          </button>
+        }
+      }
+    </div>
+  </div>
+
+  <!--
+    The honest refusal. On this screen the model states the figures, so a slice
+    with no totals behind it cannot produce a real report at all — which is worth
+    saying more plainly here than on the screens where it only costs a chart.
+  -->
+  @if (model.tooLarge() && !model.folding()) {
+    <p class="rl-note">
+      This slice has {{ (model.rowCount() ?? 0).toLocaleString() }} rows — over the
+      {{ model.analyzeLimit.toLocaleString() }} that can be totalled in the browser. The AI would
+      have counts but no sums, and would have to say so instead of reporting one. Narrow it with a
+      date range or a search term first.
+    </p>
+  }
+</section>
+
+<!--
+  Development only — `showDebug` is `!environment.production`, so this is absent
+  from a production bundle rather than hidden with CSS.
+-->
+@if (showDebug) {
+  <app-lab-inspector
+    [context]="model.contextMarkdown()"
+    [html]="model.artifact()?.html ?? null"
+  />
+}
+
+<div class="rl-workspace" [class.rl-workspace-full]="fullscreen()">
+  <main class="rl-preview">
+    <!-- Preview toolbar: what this report is, and how to look at it. -->
+    <div class="rl-preview-bar">
+      <div class="min-w-0 flex-1">
+        @if (model.artifact(); as artifact) {
+          <p class="rl-preview-title">{{ artifact.title }}</p>
+          @if (artifact.summary; as summary) {
+            <p class="rl-preview-summary">{{ summary }}</p>
+          }
+        } @else {
+          <p class="rl-preview-title text-muted">Report preview</p>
+        }
+      </div>
+
+      @if (model.hasArtifact()) {
+        <!--
+          Device widths. The frame is a real nested browsing context, so
+          constraining it re-runs the document's own media queries — this is how
+          the report's responsiveness is CHECKED rather than assumed.
+        -->
+        <div class="segment" role="group" aria-label="Preview width">
+          @for (width of widths; track width.id) {
+            <button
+              type="button"
+              class="seg"
+              [class.seg-active]="model.previewWidth() === width.id"
+              (click)="setWidth(width.id)"
+            >
+              {{ width.label }}
+            </button>
+          }
+        </div>
+
+        <button
+          type="button"
+          class="icon-btn"
+          (click)="toggleFullscreen()"
+          [attr.aria-pressed]="fullscreen()"
+          [attr.aria-label]="fullscreen() ? 'Exit full screen' : 'View full screen'"
+        >
+          <app-icon [path]="fullscreen() ? icons.collapse : icons.expand" [size]="16" />
+        </button>
+      }
+    </div>
+
+    <div class="rl-preview-body">
+      @if (model.artifactDocument(); as document) {
+        <app-artifact-frame
+          [document]="document"
+          [title]="model.artifact()?.title ?? 'Generated report'"
+          [width]="model.previewWidth()"
+        />
+      } @else if (model.busy()) {
+        <div class="rl-loading">
+          <app-skeleton variant="report" />
+        </div>
+      } @else if (model.counting() && model.rowCount() === null) {
+        <div class="rl-loading">
+          <app-skeleton variant="report" />
+        </div>
+      } @else {
+        <div class="rl-starter card card-lg">
+          <span class="rl-starter-mark">
+            <app-icon [path]="icons.lab" [size]="26" />
+          </span>
+
+          <h2 class="rl-starter-title">Ask for a report — any shape</h2>
+          <p class="rl-starter-lede">
+            There is no template behind this screen. The AI reads
+            <strong>{{ model.activeSource().label }}</strong>, decides what actually answers your
+            question, then designs and writes the whole document — layout, typography and SVG charts
+            included. A trend question gets a trend report; “why did this fall?” gets an argument.
+          </p>
+
+          <div class="rl-scope">
+            <span class="rl-scope-source">
+              <app-icon [path]="icons.database" [size]="14" />
+              {{ model.activeSource().label }}
+            </span>
+            @if (model.activeSource().description; as description) {
+              <span class="rl-scope-desc">{{ description }}</span>
+            }
+            <span class="rl-scope-state">
+              @if (model.blockedReason(); as reason) {
+                {{ reason }}
+              } @else {
+                <strong class="tabular-nums text-content">
+                  {{ (model.rowCount() ?? 0).toLocaleString() }}
+                </strong>
+                rows · totals ready
+              }
+            </span>
+          </div>
+
+          <!--
+            The honest label, stated before the first report rather than after it.
+            This screen's contract is the opposite of the AI Analyst's: there the
+            app computes every figure, here the model writes them. That is the
+            trade being evaluated, so it is not buried.
+          -->
+          <p class="rl-caveat">
+            <app-icon [path]="icons.shield" [size]="14" />
+            <span>
+              The report is rendered in a sandboxed frame with scripting and network access
+              disabled. Its figures are written by the AI from real aggregates computed here against
+              Dynamics 365 — grounded, but not recomputed by the app. Every exported copy says so.
+            </span>
+          </p>
+        </div>
+      }
+    </div>
+
+    @if (model.hasArtifact()) {
+      <!--
+        Refinements sit under the report, not in the toolbar: they act on what you
+        have just read. Each is a sentence sent through the same path as anything
+        typed into the composer.
+      -->
+      <div class="rl-refine">
+        <span class="rl-refine-label">
+          <app-icon [path]="icons.wand" [size]="13" />
+          Refine
+        </span>
+        @for (item of refinements; track item.label) {
+          <button
+            type="button"
+            class="rl-refine-chip"
+            [disabled]="model.busy()"
+            (click)="model.refine(item.prompt)"
+          >
+            {{ item.label }}
+          </button>
+        }
+      </div>
+    }
+  </main>
+
+  <!--
+    Chat dock. A fixed band at the bottom of the workspace — it does not grow with
+    the conversation and does not scroll away with the report, so the composer is
+    in the same place on every turn.
+  -->
+  <aside class="rl-dock" [class.rl-dock-collapsed]="chatCollapsed()">
+    <app-lab-chat
+      [messages]="model.turns()"
+      [streaming]="model.streaming()"
+      [busy]="model.busy()"
+      [stage]="model.stage()"
+      [progress]="model.progress()"
+      [error]="model.chatError()"
+      [suggestions]="model.suggestions()"
+      [disabled]="!model.ready()"
+      [disabledReason]="model.blockedReason()"
+      (send)="model.send($event)"
+      (stop)="model.stop()"
+      (retry)="model.retry()"
+      (collapsedChange)="chatCollapsed.set($event)"
+    />
+  </aside>
+</div>

@@ -1,0 +1,164 @@
+<div class="lc" [class.lc-collapsed]="collapsed()">
+  <header class="lc-head">
+    <span class="lc-head-mark">
+      <app-icon [path]="icons.sparkle" [size]="14" />
+    </span>
+    <span class="lc-head-title">Refine the report</span>
+
+    @if (busy() && stage() !== 'idle') {
+      <span class="lc-stage">
+        <span class="lc-stage-dot" aria-hidden="true"></span>
+        {{ stageLabel(stage()) }}{{ stageDetail() }}
+      </span>
+    }
+
+    <button
+      type="button"
+      class="lc-collapse"
+      (click)="toggleCollapsed()"
+      [attr.aria-expanded]="!collapsed()"
+      [attr.aria-label]="collapsed() ? 'Show conversation' : 'Hide conversation'"
+    >
+      <span class="lc-chevron" [class.lc-chevron-up]="collapsed()">
+        <app-icon [path]="icons.chevron" [size]="15" />
+      </span>
+    </button>
+  </header>
+
+  @if (!collapsed()) {
+    <div class="lc-scroll" #scroller>
+      @if (!messages().length && !streaming()) {
+        <div class="lc-intro">
+          <p class="lc-intro-text">
+            Describe the report you want. The AI decides the structure, the visualisations and the
+            layout, then writes the whole document — there is no fixed template behind it.
+          </p>
+          @if (suggestions().length) {
+            <div class="lc-chips">
+              @for (suggestion of suggestions(); track suggestion) {
+                <button
+                  type="button"
+                  class="lc-chip"
+                  [disabled]="disabled() || busy()"
+                  (click)="ask(suggestion)"
+                >
+                  {{ suggestion }}
+                </button>
+              }
+            </div>
+          }
+        </div>
+      }
+
+      @for (turn of messages(); track $index) {
+        <article class="lc-turn" [class.lc-turn-user]="turn.role === 'user'">
+          @if (turn.role === 'user') {
+            <!-- Shown as typed. Never parsed, never rendered as markup. -->
+            <p class="lc-bubble lc-bubble-user">{{ turn.content }}</p>
+          } @else {
+            <div class="lc-assistant">
+              <!--
+                Markdown, escaped before any markup is emitted and then bound with
+                [innerHTML] so Angular's sanitiser runs as a second layer. The
+                `.prose-chat` styles live in src/styles.css, NOT here: emulated
+                encapsulation would leave innerHTML-inserted elements unmatched.
+              -->
+              <div class="lc-bubble prose-chat" [innerHTML]="renderBody(turn.content)"></div>
+
+              @if (turn.producedArtifact) {
+                <span class="lc-built">
+                  <app-icon [path]="icons.report" [size]="12" />
+                  Rendered the report above
+                </span>
+              }
+
+              <!--
+                Repairs the parser made to this turn's document. Shown rather than
+                swallowed: a silent fix is a fix the user cannot judge, and every
+                one of these is the model breaking a stated contract.
+              -->
+              @if (turn.issues?.length) {
+                <ul class="lc-issues">
+                  @for (issue of turn.issues; track issue) {
+                    <li>{{ issue }}</li>
+                  }
+                </ul>
+              }
+            </div>
+          }
+        </article>
+      }
+
+      @if (streaming(); as partial) {
+        <article class="lc-turn">
+          <div class="lc-bubble prose-chat" [innerHTML]="renderBody(partial)"></div>
+        </article>
+      }
+
+      @if (busy()) {
+        <!--
+          The stage line, repeated where the answer will appear. The header chip
+          is easy to miss when the eye is already at the bottom of the thread —
+          and this is the only thing on screen during the long silent stretch
+          while the document itself streams in as tool arguments.
+        -->
+        <article class="lc-turn">
+          <p class="lc-thinking">
+            <span class="lc-stage-dot" aria-hidden="true"></span>
+            {{ stageLabel(stage()) || 'Working…' }}{{ stageDetail() }}
+          </p>
+        </article>
+      }
+
+      @if (error(); as message) {
+        <div class="lc-error" role="alert">
+          <app-icon [path]="icons.alert" [size]="14" />
+          <span class="flex-1">{{ message }}</span>
+          <button type="button" class="lc-mini" (click)="retry.emit()" [disabled]="busy()">
+            <app-icon [path]="icons.retry" [size]="12" />
+            Retry
+          </button>
+        </div>
+      }
+    </div>
+  }
+
+  <form class="lc-composer" (submit)="$event.preventDefault(); submit()">
+    <textarea
+      class="lc-input"
+      rows="1"
+      [value]="draft()"
+      (input)="onInput($event)"
+      (keydown)="onKeydown($event)"
+      [disabled]="disabled()"
+      [attr.placeholder]="
+        disabled()
+          ? 'Waiting for the data…'
+          : messages().length
+            ? 'Make it more executive · Remove the table · Change the chart to bars'
+            : 'Analyse sales for the last 3 months and explain any decline'
+      "
+      aria-label="Message"
+    ></textarea>
+
+    @if (busy()) {
+      <button type="button" class="lc-send lc-send-stop" (click)="stop.emit()" aria-label="Stop">
+        <app-icon [path]="icons.stop" [size]="15" />
+      </button>
+    } @else {
+      <button
+        type="submit"
+        class="lc-send"
+        [disabled]="disabled() || !draft().trim()"
+        aria-label="Send"
+      >
+        <app-icon [path]="icons.send" [size]="16" />
+      </button>
+    }
+  </form>
+
+  <!-- A disabled control has to say why, next to itself. -->
+  @if (disabled() && disabledReason()) {
+    <p class="lc-blocked">{{ disabledReason() }}</p>
+  }
+</div>

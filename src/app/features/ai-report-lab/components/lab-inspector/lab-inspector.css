@@ -1,0 +1,115 @@
+/*
+  A development panel, deliberately quiet: collapsed by default, neutral colours,
+  no accent. It sits between the control bar and the workspace and must never
+  compete with the report for attention.
+*/
+:host {
+  display: block;
+}
+
+.li {
+  overflow: hidden;
+}
+
+.li-head {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.6rem 0.85rem;
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 0.15s ease;
+}
+.li-head:hover {
+  background: var(--surface-muted);
+}
+
+.li-mark {
+  display: grid;
+  place-items: center;
+  height: 1.5rem;
+  width: 1.5rem;
+  flex: none;
+  border-radius: 0.5rem;
+  background: var(--surface-muted);
+  color: var(--content-muted);
+}
+
+.li-title {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--content);
+}
+
+.li-hint {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.75rem;
+  color: var(--content-faint);
+}
+
+.li-chevron {
+  margin-left: auto;
+  display: inline-flex;
+  flex: none;
+  color: var(--content-faint);
+  transition: transform 0.2s var(--ease-out);
+}
+.li-chevron-open {
+  transform: rotate(180deg);
+}
+
+.li-body {
+  border-top: 1px solid var(--border-soft);
+  padding: 0.75rem 0.85rem 0.85rem;
+  animation: fade-in 0.2s ease-out both;
+}
+
+.li-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.li-size {
+  font-size: 0.75rem;
+  color: var(--content-faint);
+}
+
+.li-note {
+  margin: 0.6rem 0 0.5rem;
+  font-size: 0.75rem;
+  line-height: 1.6;
+  color: var(--content-muted);
+}
+
+.li-code {
+  margin: 0;
+  max-height: 22rem;
+  overflow: auto;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-soft);
+  background: var(--surface-muted);
+  padding: 0.7rem 0.85rem;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  line-height: 1.55;
+  color: var(--content);
+  /* Long attribute soup in generated markup must wrap, not scroll sideways. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  tab-size: 2;
+}
+
+.li-empty {
+  margin: 0;
+  border-radius: var(--radius-lg);
+  border: 1px dashed var(--border-strong);
+  padding: 1rem;
+  text-align: center;
+  font-size: 0.78125rem;
+  color: var(--content-faint);
+}

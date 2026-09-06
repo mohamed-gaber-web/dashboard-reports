@@ -1,0 +1,48 @@
+/*
+  The frame is a document, not a widget, so it is presented as one: a white page
+  on the app's canvas with a soft edge, centred, at whatever device width is
+  selected. The white is unconditional — the report is designed and printed on a
+  light ground, and tinting it in dark mode would misrepresent what will come out
+  of the printer.
+*/
+:host {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  justify-content: center;
+  padding: 0;
+}
+
+.af-stage {
+  display: flex;
+  width: 100%;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-soft);
+  background: #ffffff;
+  box-shadow: var(--shadow-md);
+  /*
+    The device-width switch is deliberately NOT animated.
+
+    Animating `max-width` would relayout on every frame — and what is being laid
+    out is a nested browsing context, so each frame re-runs the whole generated
+    document's media queries and reflows it end to end. A transform would be
+    cheap but wrong: it would scale a picture of the report rather than re-flow
+    it, which is the one thing these presets exist to demonstrate. Desktop /
+    tablet / mobile is a discrete state, so it snaps.
+  */
+}
+
+.af-frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  border: 0;
+  background: #ffffff;
+  /* colorScheme:light stops a dark-mode browser inverting form controls and
+     scrollbars inside a document that is designed for paper. */
+  color-scheme: light;
+}

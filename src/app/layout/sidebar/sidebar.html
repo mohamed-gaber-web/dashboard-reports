@@ -57,6 +57,22 @@
   </a>
   -->
 
+  <!--
+    Isolated prototype at /admin/ai-report-lab. Additive: nothing above or below
+    it changed, and removing this block plus `features/ai-report-lab/` removes the
+    experiment entirely.
+  -->
+  <a
+    routerLink="/admin/ai-report-lab"
+    routerLinkActive="is-active"
+    (click)="navigate.emit()"
+    class="nav-link"
+  >
+    <app-icon [path]="reportLabIcon" [size]="18" />
+    <span class="flex-1">AI Report Lab</span>
+    <span class="nav-badge">Lab</span>
+  </a>
+
   <p class="nav-section">Modules</p>
 
   @for (group of groups(); track group.id) {

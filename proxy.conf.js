@@ -95,6 +95,7 @@ console.log(`[proxy] /api/token        -> ${describe(TOKEN_TARGET)}`);
 console.log(`[proxy] /api/chat         -> ${describe(CHAT_TARGET)}`);
 console.log(`[proxy] /api/chat-report  -> ${describe(CHAT_TARGET)}`);
 console.log(`[proxy] /api/report-builder -> ${describe(CHAT_TARGET)}`);
+console.log(`[proxy] /api/ai-report-lab -> ${describe(CHAT_TARGET)}`);
 console.log(`[proxy] /api/ai-providers -> ${describe(CHAT_TARGET)}`);
 
 const stripBrowserOrigin = (proxy) => {
@@ -146,6 +147,16 @@ module.exports = {
    * actually run.
    */
   '/api/report-builder': proxyTo(CHAT_TARGET, '/api/report-builder'),
+
+  /*
+   * AI Report Lab backend — the isolated HTML/SVG artifact prototype.
+   *
+   * Load-bearing for the same reason '/api/report-builder' is: this path is NOT
+   * a suffix of '/api/chat', so without this entry the route falls through to
+   * the Angular dev server and returns index.html — which the SSE client reads
+   * as a stream of nothing, i.e. a page that hangs instead of one that fails.
+   */
+  '/api/ai-report-lab': proxyTo(CHAT_TARGET, '/api/ai-report-lab'),
 
   /*
    * Which providers this backend can actually use, for the model picker.

@@ -1,0 +1,75 @@
+<section class="li card">
+  <button
+    type="button"
+    class="li-head"
+    (click)="toggle()"
+    [attr.aria-expanded]="open()"
+  >
+    <span class="li-mark">
+      <app-icon [path]="icons.inspect" [size]="14" />
+    </span>
+    <span class="li-title">Inspector</span>
+    <span class="pill pill-neutral">Dev only</span>
+    <span class="li-hint">What went to the model, and what came back</span>
+    <span class="li-chevron" [class.li-chevron-open]="open()" aria-hidden="true">
+      <app-icon [path]="icons.chevron" [size]="15" />
+    </span>
+  </button>
+
+  @if (open()) {
+    <div class="li-body">
+      <div class="li-bar">
+        <div class="segment" role="tablist">
+          <button
+            type="button"
+            role="tab"
+            class="seg"
+            [attr.aria-selected]="tab() === 'context'"
+            (click)="select('context')"
+          >
+            Context sent
+          </button>
+          <button
+            type="button"
+            role="tab"
+            class="seg"
+            [attr.aria-selected]="tab() === 'html'"
+            (click)="select('html')"
+          >
+            Generated HTML
+          </button>
+        </div>
+
+        <span class="li-size tabular-nums">{{ size() }}</span>
+
+        <button type="button" class="btn-ghost btn-sm ml-auto" (click)="copy()" [disabled]="!body()">
+          <app-icon [path]="copied() ? icons.check : icons.copy" [size]="13" />
+          {{ copied() ? 'Copied' : 'Copy' }}
+        </button>
+      </div>
+
+      <p class="li-note">
+        @if (tab() === 'context') {
+          This exact Markdown is embedded in the model’s system prompt. It is the whole of what it
+          knows: the schema, real aggregates over the current slice, and at most five sample rows.
+          The raw dataset never leaves the browser.
+        } @else {
+          The document fragment as the model wrote it, after the parser’s repairs. The app adds only
+          the wrapper — charset, content-security policy and the provenance footer.
+        }
+      </p>
+
+      <!--
+        Bound with {{ }} inside a <pre>, never [innerHTML]. This panel exists to
+        show markup AS TEXT; rendering it here would put model-authored HTML into
+        the application's own DOM, which is the single thing the whole feature is
+        built to avoid.
+      -->
+      @if (body(); as text) {
+        <pre class="li-code">{{ text }}</pre>
+      } @else {
+        <p class="li-empty">{{ placeholder() }}</p>
+      }
+    </div>
+  }
+</section>

@@ -63,6 +63,23 @@ export const routes: Routes = [
             (m) => m.ReportBuilderComponent,
           ),
       },
+      /*
+       * AI Report Lab — an ISOLATED prototype.
+       *
+       * Under `admin/` and lazy-loaded like every other screen, so it shares the
+       * shell and nothing else. It does not replace, wrap or re-route any
+       * existing report: `/ai/analyst`, `/ai/chat-reports` and
+       * `/ai/report-builder` are untouched, and deleting this entry plus
+       * `features/ai-report-lab/` removes the experiment completely.
+       */
+      {
+        path: 'admin/ai-report-lab',
+        title: 'AI Report Lab',
+        loadComponent: () =>
+          import('./features/ai-report-lab/pages/ai-report-lab/ai-report-lab').then(
+            (m) => m.AiReportLabComponent,
+          ),
+      },
       {
         path: 'settings',
         title: 'Settings',
