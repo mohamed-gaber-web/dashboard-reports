@@ -9,6 +9,11 @@ import { ANALYST_SOURCES } from '../../../ai-analyst/analyst-sources';
 import { AnalystFilter, AnalystSource } from '../../../ai-analyst/models/analyst-source.model';
 import { AnalystDataService } from '../../../ai-analyst/services/analyst-data.service';
 import { DataContextService } from '../../../ai-analyst/services/data-context.service';
+import {
+  ModuleContextPhase,
+  ModuleContextService,
+} from '../../../ai-analyst/services/module-context.service';
+import { ModuleDataAvailability } from '../../../ai-analyst/models/module-context.model';
 import { SpecCompilerService } from '../../../ai-analyst/services/spec-compiler.service';
 import { ExportTooLargeError } from '../../../ai-analyst/services/export.service';
 import {
@@ -53,6 +58,7 @@ import { validateDefinition } from '../../services/report-definition.validator';
 export class ReportBuilderModel {
   private readonly data = inject(AnalystDataService);
   private readonly context = inject(DataContextService);
+  private readonly moduleContext = inject(ModuleContextService);
   private readonly composer = inject(ReportComposerService);
   private readonly compiler = inject(SpecCompilerService);
   private readonly api = inject(BuilderApiService);
@@ -87,6 +93,93 @@ export class ReportBuilderModel {
     () => this.sources.find((s) => s.id === this._activeId()) ?? this.sources[0],
   );
   readonly suggestions = computed(() => this.activeSource().suggestions);
+
+  // ── Module context ───────────────────────────────────────────────────────
+  // What the selected module IS, normalized for the AI layer — its fields, their
+  // roles and types, how it can be filtered, and what the read pipeline can
+  // compute over it. Distinct from the slice below, which is how much of it the
+  // user is currently looking at.
+  //
+  // New state here uses the private-signal + `asReadonly()` discipline rather
+  // than the public writable signals the rest of this file predates. Nothing
+  // outside the ViewModel has any business setting it.
+
+  private readonly _modulePhase = signal<ModuleContextPhase | null>(null);
+  readonly modulePhase = this._modulePhase.asReadonly();
+
+  /** The normalized module, as soon as it is known — metadata needs no I/O. */
+  readonly moduleContextValue = computed(() => {
+    const phase = this._modulePhase();
+    return phase && phase.phase !== 'error' ? phase.context : null;
+  });
+
+  /** True only while the one round trip (the module's date range) is in flight. */
+  readonly moduleContextLoading = computed(() => this._modulePhase()?.phase === 'loading');
+
+  /** Set when there is nothing to describe: an unknown module, or no fields. */
+  readonly moduleContextError = computed(() => {
+    const phase = this._modulePhase();
+    return phase?.phase === 'error' ? phase : null;
+  });
+
+  /** Set when the description is usable but incomplete. See `ModuleContextPhase`. */
+  readonly moduleContextWarning = computed(() => {
+    const phase = this._modulePhase();
+    return phase?.phase === 'ready' ? (phase.warning ?? null) : null;
+  });
+
+  /**
+   * What is currently known about the DATA behind the module — never the data.
+   *
+   * Composed from signals this ViewModel already holds rather than re-read:
+   * `refreshCount()` has the exact `$count` for the live slice, and asking
+   * `ModuleContextService` to count again would double every round trip to D365
+   * on an entity where a count can take seconds.
+   */
+  private readonly availability = computed<ModuleDataAvailability | undefined>(() => {
+    const rowCount = this.rowCount();
+    if (rowCount === null) return undefined;
+
+    const folded = this.cube() !== null;
+    const phase = this._modulePhase();
+    const dateRange = phase?.phase === 'ready' ? phase.dateRange : undefined;
+    const slice = this.filter();
+    const narrowed = !!(slice.from || slice.to || slice.search);
+
+    return {
+      rowCount,
+      // Not yet folded and too-large-to-fold are the same thing from the model's
+      // side: there are no sums to quote either way, so neither may be quoted.
+      coverage: folded ? 'exact' : 'counts-only',
+      totalsAvailable: folded,
+      ...(narrowed ? { slice } : {}),
+      ...(dateRange ? { dateRange } : {}),
+    };
+  });
+
+  /**
+   * The module as the AI layer will eventually receive it.
+   *
+   * Exposed now so the boundary is real and inspectable before anything sends
+   * it. Nothing builds a prompt from this yet — that is a later task.
+   */
+  readonly aiDataContext = computed(() => {
+    const context = this.moduleContextValue();
+    return context ? this.moduleContext.toAiContext(context, this.availability()) : null;
+  });
+
+  /** Re-describe the selected module. Cheap: only the date range is re-read. */
+  loadModuleContext(): void {
+    this.moduleContext
+      .load(this._activeId())
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((phase) => {
+        // A slower earlier load must not overwrite the module the user has since
+        // moved to. Same guard as `ChatReportsModel.loadContext`.
+        if (phase.phase !== 'error' && phase.context.moduleId !== this._activeId()) return;
+        this._modulePhase.set(phase);
+      });
+  }
 
   // ── The user's slice ─────────────────────────────────────────────────────
   readonly filter = signal<AnalystFilter>({});
@@ -168,6 +261,7 @@ export class ReportBuilderModel {
       this.data.cancelFold();
       clearTimeout(this.searchDebounce);
     });
+    this.loadModuleContext();
     this.refreshCount();
   }
 
@@ -191,6 +285,10 @@ export class ReportBuilderModel {
     this.rowCount.set(null);
     this.filter.set({});
     this._activeId.set(id);
+    // Cleared before reloading so the panel cannot show the previous module's
+    // schema next to the new module's name for the length of one request.
+    this._modulePhase.set(null);
+    this.loadModuleContext();
     this.refreshCount();
   }
 

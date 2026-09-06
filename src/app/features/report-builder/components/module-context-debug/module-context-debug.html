@@ -1,0 +1,186 @@
+<section class="mcd card">
+  <button
+    type="button"
+    class="mcd-head"
+    [attr.aria-expanded]="open()"
+    (click)="toggle()"
+  >
+    <span class="mcd-tag">DEV</span>
+    <span class="mcd-title">Module context</span>
+
+    @if (context(); as ctx) {
+      <span class="mcd-sub">
+        {{ ctx.moduleName }} &middot; {{ ctx.fields.length }} fields &middot;
+        {{ ctx.measures.length }} measures &middot; {{ ctx.dimensions.length }} dimensions
+      </span>
+    } @else if (loading()) {
+      <span class="mcd-sub">Loading module information&hellip;</span>
+    } @else if (error()) {
+      <span class="mcd-sub mcd-sub-warn">Unable to load module information</span>
+    }
+
+    <span class="mcd-chevron" [class.mcd-chevron-open]="open()" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+        <path [attr.d]="icons.chevron" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+    </span>
+  </button>
+
+  @if (open()) {
+    <div class="mcd-body">
+      <!--
+        Three states, and they are genuinely different. Nothing has been asked
+        for yet; the one round trip is in flight; or there is nothing to
+        describe. Only the last is a failure.
+      -->
+      @if (!started()) {
+        <p class="mcd-note">No module has been described yet.</p>
+      } @else if (error(); as err) {
+        <p class="mcd-note mcd-note-warn" role="status">
+          @if (err.reason === 'no-metadata') {
+            No metadata is available for this module.
+          } @else {
+            Unable to load module information.
+          }
+          <span class="mcd-reason">{{ err.message }}</span>
+        </p>
+      } @else if (context(); as ctx) {
+        @if (loading()) {
+          <p class="mcd-note" role="status">
+            Loading module information&hellip; the schema below is already accurate.
+          </p>
+        }
+        @if (warning(); as warn) {
+          <p class="mcd-note mcd-note-warn" role="status">{{ warn }}</p>
+        }
+
+        <!-- Identity -->
+        <dl class="mcd-meta">
+          <div>
+            <dt>Module</dt>
+            <dd>{{ ctx.moduleName }} <code>{{ ctx.moduleId }}</code></dd>
+          </div>
+          @if (ctx.description) {
+            <div>
+              <dt>Description</dt>
+              <dd>{{ ctx.description }}</dd>
+            </div>
+          }
+          <div>
+            <dt>Time axis</dt>
+            <dd>
+              @if (ctx.timeAxis) {
+                <code>{{ ctx.timeAxis }}</code>
+                @if (dateRange(); as range) {
+                  <span class="mcd-dim">
+                    &middot; {{ range.min ?? '?' }} &rarr; {{ range.max ?? '?' }}
+                  </span>
+                }
+              } @else {
+                <span class="mcd-dim">none &mdash; this module has no date column</span>
+              }
+            </dd>
+          </div>
+        </dl>
+
+        <!-- What the pipeline can do -->
+        <div class="mcd-caps">
+          @for (cap of capabilities(); track cap.label) {
+            <span class="pill" [class.pill-ok]="cap.on" [class.pill-neutral]="!cap.on">
+              {{ cap.on ? '✓' : '✗' }} {{ cap.label }}
+            </span>
+          }
+          <span class="pill pill-info">
+            fold gate {{ ctx.capabilities.maxAnalyzeRows.toLocaleString() }} rows
+          </span>
+        </div>
+
+        <!-- What is known about the data behind it, never the data -->
+        @if (availability(); as data) {
+          <div class="mcd-caps">
+            <span class="pill pill-info">{{ data.rowCount.toLocaleString() }} rows in slice</span>
+            <span class="pill" [class.pill-ok]="data.totalsAvailable" [class.pill-warn]="!data.totalsAvailable">
+              {{ data.coverage }}
+            </span>
+            @if (data.slice; as slice) {
+              <span class="pill pill-neutral">
+                filtered{{ slice.from ? ' from ' + slice.from : '' }}{{ slice.to ? ' to ' + slice.to : ''
+                }}{{ slice.search ? ' · “' + slice.search + '”' : '' }}
+              </span>
+            }
+          </div>
+        } @else {
+          <p class="mcd-note">Nothing counted yet &mdash; no data availability to report.</p>
+        }
+
+        <!-- Fields -->
+        <div class="mcd-scroll">
+          <table class="tbl">
+            <thead>
+              <tr>
+                <th>Field</th>
+                <th>Label</th>
+                <th>Type</th>
+                <th>Role</th>
+                <th>Aggregations</th>
+                <th>Values / search</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (field of fields(); track field.name) {
+                <tr>
+                  <td><code>{{ field.name }}</code></td>
+                  <td>{{ field.label }}</td>
+                  <td>{{ field.type }}</td>
+                  <td>
+                    <span
+                      class="pill"
+                      [class.pill-ok]="field.role === 'measure'"
+                      [class.pill-info]="field.role === 'dimension'"
+                      [class.pill-neutral]="field.role === 'attribute'"
+                      >{{ field.role }}</span
+                    >
+                  </td>
+                  <td class="mcd-dim">{{ field.aggregations.join(', ') || '—' }}</td>
+                  <td class="mcd-dim">
+                    @if (field.enumValues?.length) {
+                      {{ field.enumValues!.join(', ') }}
+                    } @else if (field.searchable) {
+                      search: {{ field.searchable }}
+                    } @else {
+                      &mdash;
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Filters -->
+        <ul class="mcd-filters">
+          @for (filter of slicers(); track $index) {
+            <li>
+              <span class="pill pill-info">{{ filter.kind }}</span>
+              <span class="mcd-dim">{{ slicerDetail(filter) }}</span>
+            </li>
+          }
+          <li>
+            <span class="pill pill-neutral">field</span>
+            <span class="mcd-dim">
+              {{ fieldFilterCount() }} per-field comparison filters &mdash; operators per field type
+            </span>
+          </li>
+        </ul>
+
+        <!-- The wire payload, so the redaction can be checked by eye -->
+        <button type="button" class="btn-ghost btn-sm" (click)="toggleJson()">
+          {{ showJson() ? 'Hide' : 'Show' }} AI payload
+        </button>
+        @if (showJson()) {
+          <pre class="mcd-json">{{ json() }}</pre>
+        }
+      }
+    </div>
+  }
+</section>

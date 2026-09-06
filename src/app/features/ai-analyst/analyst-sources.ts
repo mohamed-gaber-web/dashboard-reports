@@ -9,6 +9,7 @@ import {
   SHATAT_SEARCH_FIELDS,
   SHATAT_SERIAL_TRANS_SELECT,
 } from '../shatat/models/shatat-serial-trans.model';
+import { INVENTORY_SOURCE } from './inventory-fields';
 import { SALES_ORDER_DATE_FIELD, SALES_ORDER_FIELDS } from './sales-order-fields';
 import { SHATAT_DATE_FIELD, SHATAT_SERIAL_TRANS_FIELDS } from './shatat-serial-trans-fields';
 import {
@@ -156,6 +157,9 @@ export const ANALYST_SOURCES: readonly AnalystSource[] = [
     dateField: SALES_ORDER_SOURCE.dateField,
     currencyField: 'CurrencyCode',
   },
+  // Inventory on hand. Declared in its own file like every other module — see
+  // `inventory-fields.ts`, including why it used to live under chat-reports.
+  INVENTORY_SOURCE,
   {
     id: 'transaction',
     label: 'Transaction',

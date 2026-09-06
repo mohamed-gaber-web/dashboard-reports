@@ -2,7 +2,9 @@ import { ChangeDetectionStrategy, Component, HostListener, inject, signal } from
 import { IconComponent } from '../../../../shared/ui/icon/icon';
 import { ProviderSwitchComponent } from '../../../../shared/ui/provider-switch/provider-switch';
 import { SkeletonComponent } from '../../../../shared/ui/skeleton/skeleton';
+import { environment } from '../../../../../environments/environment';
 import { BuilderChatComponent } from '../../components/builder-chat/builder-chat';
+import { ModuleContextDebugComponent } from '../../components/module-context-debug/module-context-debug';
 import { ReportCanvasComponent } from '../../components/report-canvas/report-canvas';
 import { ExportFormat } from '../../models/conversation.model';
 import { ReportBuilderModel } from './report-builder.model';
@@ -31,6 +33,7 @@ import { ReportBuilderModel } from './report-builder.model';
     ProviderSwitchComponent,
     SkeletonComponent,
     BuilderChatComponent,
+    ModuleContextDebugComponent,
     ReportCanvasComponent,
   ],
   providers: [ReportBuilderModel],
@@ -40,6 +43,28 @@ import { ReportBuilderModel } from './report-builder.model';
 })
 export class ReportBuilderComponent {
   protected readonly model = inject(ReportBuilderModel);
+
+  /**
+   * Whether to mount the module-context inspection panel.
+   *
+   * A plain constant rather than a signal, because it is a build-time fact.
+   *
+   * ## Why `@if` and not `@defer`, having measured both
+   *
+   * A component named in `imports` lands in its page's chunk whether or not the
+   * template instantiates it, so this `@if` does ship ~10 kB of inert panel to
+   * production. `@defer (when showDebug)` moves it to a chunk a production build
+   * never requests — but it also pulls Angular's deferred-loading runtime into
+   * the INITIAL bundle: measured at 337.39 kB -> 343.75 kB, paid by every
+   * visitor on every page, to save 10 kB on a lazily-loaded feature chunk that
+   * most visitors never fetch at all. That is the wrong trade while this is the
+   * app's only `@defer`; if one is ever added for a real feature, the overhead
+   * is already paid and this should switch.
+   *
+   * The panel renders nothing in production either way — `showDebug` is false,
+   * so no internal schema reaches a user's screen.
+   */
+  protected readonly showDebug = !environment.production;
 
   protected readonly exportOpen = signal(false);
   protected readonly chatCollapsed = signal(false);

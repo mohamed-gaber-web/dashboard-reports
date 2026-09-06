@@ -96,6 +96,15 @@
   --color-danger: var(--danger);
   --color-info: var(--info);
 
+  /*
+   * Radius scale. `--radius-lg` sits one step below the card radius and was
+   * being referenced by four panels (the grounding note, the fold progress, the
+   * slice filter, the html-document frame) as `var(--radius-lg, 0.75rem)` while
+   * never being defined — every one silently took the 0.75rem fallback. Defining
+   * it here makes the token real: the value lives in one place, and a future
+   * change to it moves all four together instead of leaving them on a literal.
+   */
+  --radius-lg: 0.75rem;
   --radius-xl: 0.875rem;
   --radius-2xl: 1.125rem;
 }

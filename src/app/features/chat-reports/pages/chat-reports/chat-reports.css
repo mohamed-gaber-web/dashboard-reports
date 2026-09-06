@@ -146,8 +146,13 @@
   /*
    * A fixed frame rather than a growing page. The composer must not walk down
    * the screen as the transcript grows — the place you type stays put.
+   *
+   * `dvh`, not `vh`: on mobile `100vh` is the height with the address bar
+   * retracted, so the frame runs taller than the visible viewport and the
+   * composer — the whole point of the fixed frame — sits behind the browser
+   * chrome. `dvh` tracks the viewport as the bar shows and hides.
    */
-  height: clamp(28rem, calc(100vh - 15rem), 56rem);
+  height: clamp(28rem, calc(100dvh - 15rem), 56rem);
   flex-direction: column;
   overflow: hidden;
 }

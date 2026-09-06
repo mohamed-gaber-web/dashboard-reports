@@ -78,6 +78,15 @@ export interface SearchField {
 }
 
 /**
+ * Shortest term worth running a search for.
+ *
+ * Exported so anything DESCRIBING the search capability quotes the same number
+ * the search itself enforces, rather than restating it as a literal that can
+ * drift — see `ModuleFilter` of kind `search`.
+ */
+export const SEARCH_MIN_LENGTH = 2;
+
+/**
  * OR together a wildcard match across several fields, for a search box.
  *
  * Returns `null` for a term too short to be worth a scan of millions of rows —
@@ -87,7 +96,7 @@ export interface SearchField {
 export function buildSearchFilter(
   term: string,
   fields: readonly SearchField[],
-  minLength = 2,
+  minLength = SEARCH_MIN_LENGTH,
 ): string | null {
   const clean = term.trim().replace(/[*']/g, '');
   if (clean.length < minLength || fields.length === 0) return null;

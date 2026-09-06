@@ -1,7 +1,6 @@
 import { ANALYST_SOURCES } from '../../ai-analyst/analyst-sources';
 import { AnalystSource } from '../../ai-analyst/models/analyst-source.model';
 import { SourceOption } from '../../../shared/models/source-option.model';
-import { INVENTORY_SOURCE } from './inventory-source';
 
 /**
  * The datasets Chat Reports can be pointed at.
@@ -189,16 +188,7 @@ export const CHAT_REPORT_SOURCES: ChatReportSource[] = [
       searchPlaceholder: 'Order, item, customer…',
     },
   },
-  // Not via `fromAnalyst`: Inventory is defined in this feature rather than in
-  // the shared registry, for the reason given in `inventory-source.ts`.
-  {
-    id: INVENTORY_SOURCE.id,
-    label: INVENTORY_SOURCE.label,
-    description: INVENTORY_SOURCE.description,
-    starters: INVENTORY_SOURCE.suggestions,
-    analyst: INVENTORY_SOURCE,
-    filters: filtersFor(INVENTORY_SOURCE),
-  },
+  fromAnalyst('inventory'),
   fromAnalyst('transaction', { label: 'Transactions' }),
   fromAnalyst('purchase-order'),
   // The general ledger, when it is configured. `fromAnalyst` throws on an

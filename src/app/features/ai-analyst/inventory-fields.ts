@@ -1,7 +1,7 @@
-import { environment } from '../../../../environments/environment';
-import { SearchField } from '../../../core/http/odata-filter.util';
-import { AnalystSource } from '../../ai-analyst/models/analyst-source.model';
-import { FieldMeta } from '../../ai-analyst/models/field-meta.model';
+import { environment } from '../../../environments/environment';
+import { SearchField } from '../../core/http/odata-filter.util';
+import { AnalystSource } from './models/analyst-source.model';
+import { FieldMeta } from './models/field-meta.model';
 
 /**
  * Inventory on hand — item × site × warehouse.
@@ -26,14 +26,17 @@ import { FieldMeta } from '../../ai-analyst/models/field-meta.model';
  *
  * On-hand is a snapshot, not a ledger — there is no transaction date to window
  * on. `dateField` is therefore undefined, which is what stops a trend chart
- * being offered over a quantity that has no time axis.
+ * being offered over a quantity that has no time axis. It is also the module
+ * that proves {@link ModuleContextService} handles a module with no time axis:
+ * no `dateRange` filter is advertised and no field claims `min`/`max`.
  *
- * ## Where this belongs eventually
+ * ## Why this lives here
  *
- * With `ai-analyst/analyst-sources.ts` — it is a property of the application,
- * not of this screen, and the AI Analyst would benefit from it too. It is here
- * because that file was being edited concurrently when this was written. Moving
- * it is a copy-paste plus one import change.
+ * It was written under `features/chat-reports/sources/` because that file was
+ * being edited concurrently, with a note saying it belonged in the shared
+ * registry. It now is: a module is a property of the APPLICATION, not of one
+ * screen, and while it sat in the chat-reports feature the AI Analyst and the
+ * Report Builder could not see Inventory at all.
  */
 
 /** Product-dimension columns are part of the key but empty in this data. */

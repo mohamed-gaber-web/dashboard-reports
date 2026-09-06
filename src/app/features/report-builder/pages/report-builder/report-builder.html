@@ -236,6 +236,15 @@
   }
 </section>
 
+<!--
+  The module context the AI layer will be given, shown while it is being built.
+  Development only — `showDebug` is `!environment.production`, so this is absent
+  from a production bundle rather than hidden by CSS.
+-->
+@if (showDebug) {
+  <app-module-context-debug [phase]="model.modulePhase()" [ai]="model.aiDataContext()" />
+}
+
 <div class="rbp-workspace">
   <main class="rbp-report-pane">
     <div class="rbp-report-scroll">
